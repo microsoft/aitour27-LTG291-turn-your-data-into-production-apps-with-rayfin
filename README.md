@@ -33,7 +33,7 @@ Fill in the sections below yourself, then:
 
 # [Microsoft AI Tour 2027](https://aitour.microsoft.com)
 
-## 🔥 BRKXXX: SESSION TITLE
+## 🔥 LTG291: Turn your data into production apps with Rayfin
 
 ### Session description
 
