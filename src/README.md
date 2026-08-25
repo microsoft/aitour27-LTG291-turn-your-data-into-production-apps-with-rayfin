@@ -1,5 +1,9 @@
 # Source
 
-<!-- AI TOUR TEMPLATE PLACEHOLDER: remove this folder when the session needs no source files. -->
+Session source material for the LTG291 Caldova demo.
 
-Use this folder for sample code, demos, or runnable source material.
+| Folder | Contents |
+| --- | --- |
+| [`fabric/`](fabric/) | The Caldova semantic model and the DAX used to validate it |
+
+The dataset it reads lives in [`../data/`](../data/), and the deployment scripts (`deploy.sh`, `deploy.ps1`) are at the repository root.
