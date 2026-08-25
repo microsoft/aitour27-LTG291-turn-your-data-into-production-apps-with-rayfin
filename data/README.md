@@ -16,6 +16,12 @@ The fixed seed in `generate.js` produces the same five CSV files on every run:
 | `products.csv` | 60 SKUs | OTC product catalog and pricing |
 | `inventory.csv` | 900 rows | Store-by-SKU stock, reorder point, and safety stock |
 | `sales.csv` | 63,000 rows | 70 days of store-by-SKU sales |
-| `restock_requests.csv` | Header only | Contract reference; live requests are stored by Rayfin |
+| `restock_requests.csv` | 8 rows | Seeded reorder history; live requests are appended by the deployed app |
 
 Several fixed store/SKU pairs are deliberately kept below 1.6 days of stock so the live demo always has obvious action candidates. `test/generator.test.js` captures the deterministic shape and hero-SKU invariants.
+
+## Restock requests
+
+`restock_requests.csv` carries the governed record of every reorder: `request_id`, `store_id`, `sku`, `qty`, `requested_by`, `requested_by_id`, `requested_at` (ISO 8601 UTC), `status` and `note`.
+
+The seed rows exist for two reasons. They give the app's "recent reorders" list something to show before the live reorder lands, and they give Fabric real values to infer Delta column types from — a header-only file would produce an unusable table.

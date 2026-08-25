@@ -8,6 +8,7 @@ const {
   HEADERS,
   HERO_LOW_STOCK_ASSIGNMENTS,
   OUTPUT_DIR,
+  RESTOCK_SEED_REQUESTS,
   SALES_DAYS,
   buildDataset,
   datasetToFiles,
@@ -30,12 +31,13 @@ test('buildDataset returns the expected table sizes', () => {
   assert.equal(dataset.products.length, 60);
   assert.equal(dataset.inventory.length, 15 * 60);
   assert.equal(dataset.sales.length, SALES_DAYS * 15 * 60);
-  assert.equal(dataset.restock_requests.length, 0);
+  assert.equal(dataset.restock_requests.length, RESTOCK_SEED_REQUESTS.length);
 
   assert.deepEqual(Object.keys(dataset.stores[0]), HEADERS.stores);
   assert.deepEqual(Object.keys(dataset.products[0]), HEADERS.products);
   assert.deepEqual(Object.keys(dataset.inventory[0]), HEADERS.inventory);
   assert.deepEqual(Object.keys(dataset.sales[0]), HEADERS.sales);
+  assert.deepEqual(Object.keys(dataset.restock_requests[0]), HEADERS.restock_requests);
 });
 
 test('csv serialization is deterministic and escapes reserved characters', () => {
@@ -92,6 +94,33 @@ test('hero low-stock pairs stay reproducibly obvious', () => {
   }
 });
 
+test('restock request seed rows stay loadable and referentially sound', () => {
+  const dataset = buildDataset();
+  const storeIds = new Set(dataset.stores.map((row) => row.store_id));
+  const skus = new Set(dataset.products.map((row) => row.sku));
+  const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const utcPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+  const requestIds = new Set();
+
+  for (const row of dataset.restock_requests) {
+    assert.ok(storeIds.has(row.store_id), `${row.store_id} should be a known store`);
+    assert.ok(skus.has(row.sku), `${row.sku} should be a known SKU`);
+    assert.ok(guidPattern.test(row.request_id), `${row.request_id} should be a GUID`);
+    assert.ok(guidPattern.test(row.requested_by_id), `${row.requested_by_id} should be a GUID`);
+    assert.ok(utcPattern.test(row.requested_at), `${row.requested_at} should be an ISO UTC timestamp`);
+    assert.ok(Number.isInteger(row.qty) && row.qty > 0, 'qty should be a positive integer');
+    assert.ok(['submitted', 'fulfilled'].includes(row.status), `${row.status} should be a known status`);
+    assert.ok(row.note.length > 0, 'note should not be empty');
+    assert.ok(!requestIds.has(row.request_id), 'request ids should be unique');
+    requestIds.add(row.request_id);
+  }
+
+  const requestedBy = new Map(dataset.stores.map((row) => [row.store_id, row.manager_upn]));
+  for (const row of dataset.restock_requests) {
+    assert.equal(row.requested_by, requestedBy.get(row.store_id));
+  }
+});
+
 test('writeDataset emits exact headers and stable file shapes', () => {
   writeDataset(OUTPUT_DIR);
 
@@ -100,7 +129,10 @@ test('writeDataset emits exact headers and stable file shapes', () => {
     'products.csv': { header: HEADERS.products.join(','), lines: 61 },
     'inventory.csv': { header: HEADERS.inventory.join(','), lines: 901 },
     'sales.csv': { header: HEADERS.sales.join(','), lines: 63001 },
-    'restock_requests.csv': { header: HEADERS.restock_requests.join(','), lines: 1 },
+    'restock_requests.csv': {
+      header: HEADERS.restock_requests.join(','),
+      lines: 1 + RESTOCK_SEED_REQUESTS.length,
+    },
   };
 
   const firstDigests = {};

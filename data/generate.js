@@ -17,10 +17,23 @@ const HEADERS = {
     'sku',
     'qty',
     'requested_by',
+    'requested_by_id',
     'requested_at',
     'status',
+    'note',
   ],
 };
+
+const RESTOCK_SEED_REQUESTS = [
+  { store_id: 'STO-NW-002', sku: 'COLD-003', qty: 120, day_offset: 62, hour: 8, minute: 12, status: 'fulfilled', note: 'Weekly top-up ahead of the holiday weekend' },
+  { store_id: 'STO-MW-002', sku: 'VIT-001', qty: 90, day_offset: 63, hour: 9, minute: 41, status: 'fulfilled', note: 'Shelf gap flagged during the morning count' },
+  { store_id: 'STO-SE-002', sku: 'DIGEST-003', qty: 60, day_offset: 64, hour: 14, minute: 5, status: 'fulfilled', note: 'Promotion pulled forward two weeks of demand' },
+  { store_id: 'STO-SW-002', sku: 'ALLERGY-003', qty: 150, day_offset: 66, hour: 7, minute: 58, status: 'submitted', note: 'Pollen season running hot across the region' },
+  { store_id: 'STO-NE-002', sku: 'PAIN-005', qty: 75, day_offset: 67, hour: 11, minute: 23, status: 'submitted', note: 'Covering a delayed delivery from the primary supplier' },
+  { store_id: 'STO-NW-003', sku: 'FIRST-001', qty: 40, day_offset: 68, hour: 16, minute: 30, status: 'submitted', note: 'Restocking after the school sports season rush' },
+  { store_id: 'STO-MW-003', sku: 'COLD-005', qty: 110, day_offset: 69, hour: 10, minute: 7, status: 'submitted', note: 'Late cold snap driving lozenge sales' },
+  { store_id: 'STO-SE-003', sku: 'VIT-005', qty: 85, day_offset: 69, hour: 15, minute: 44, status: 'submitted', note: 'Immunity range under-stocked since last cycle count' },
+];
 
 const CATEGORY_BASE_DEMAND = {
   'Pain relief': 2.8,
@@ -205,6 +218,28 @@ function formatDate(dayOffset) {
   return start.toISOString().slice(0, 10);
 }
 
+function formatTimestamp(dayOffset, hour, minute) {
+  const start = new Date(`${START_DATE}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() + dayOffset);
+  start.setUTCHours(hour, minute, 0, 0);
+  return `${start.toISOString().slice(0, 19)}Z`;
+}
+
+function deterministicGuid(key) {
+  let hex = '';
+  for (let index = 0; index < 4; index += 1) {
+    hex += hash32(`guid|${index}|${key}`).toString(16).padStart(8, '0');
+  }
+  const variant = '89ab'[parseInt(hex[16], 16) % 4];
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `4${hex.slice(13, 16)}`,
+    `${variant}${hex.slice(17, 20)}`,
+    hex.slice(20, 32),
+  ].join('-');
+}
+
 function weekdayMultiplier(dateString) {
   const day = new Date(`${dateString}T00:00:00Z`).getUTCDay();
   return [0.86, 1.08, 1.1, 1.03, 1.0, 1.04, 0.92][day];
@@ -351,17 +386,39 @@ function buildInventory(stores, products, totalsByPair) {
   return inventory;
 }
 
+function buildRestockRequests(stores) {
+  const managerByStore = new Map(stores.map((store) => [store.store_id, store.manager_upn]));
+
+  return RESTOCK_SEED_REQUESTS.map((seed) => {
+    const requestedBy = managerByStore.get(seed.store_id);
+    const requestedAt = formatTimestamp(seed.day_offset, seed.hour, seed.minute);
+
+    return {
+      request_id: deterministicGuid(`request|${seed.store_id}|${seed.sku}|${requestedAt}`),
+      store_id: seed.store_id,
+      sku: seed.sku,
+      qty: seed.qty,
+      requested_by: requestedBy,
+      requested_by_id: deterministicGuid(`identity|${requestedBy}`),
+      requested_at: requestedAt,
+      status: seed.status,
+      note: seed.note,
+    };
+  });
+}
+
 function buildDataset() {
   const products = buildProducts();
   const { sales, totalsByPair } = buildSales(STORE_CATALOG, products);
   const inventory = buildInventory(STORE_CATALOG, products, totalsByPair);
+  const stores = STORE_CATALOG.map(({ store_factor, ...store }) => store);
 
   return {
-    stores: STORE_CATALOG.map(({ store_factor, ...store }) => store),
+    stores,
     products: products.map(({ popularity, ...product }) => product),
     inventory,
     sales,
-    restock_requests: [],
+    restock_requests: buildRestockRequests(stores),
   };
 }
 
@@ -414,7 +471,7 @@ if (require.main === module) {
   const { dataset } = writeDataset();
   console.log(`Generated Caldova dataset in ${OUTPUT_DIR}`);
   console.log(
-    `Stores: ${dataset.stores.length} | Products: ${dataset.products.length} | Inventory: ${dataset.inventory.length} | Sales: ${dataset.sales.length}`,
+    `Stores: ${dataset.stores.length} | Products: ${dataset.products.length} | Inventory: ${dataset.inventory.length} | Sales: ${dataset.sales.length} | Restock requests: ${dataset.restock_requests.length}`,
   );
   console.log(`Hero low-stock SKUs: ${describeHeroAssignments(dataset).join(' ; ')}`);
 }
@@ -423,6 +480,7 @@ module.exports = {
   HEADERS,
   HERO_LOW_STOCK_ASSIGNMENTS,
   OUTPUT_DIR,
+  RESTOCK_SEED_REQUESTS,
   SALES_DAYS,
   SEED,
   START_DATE,
