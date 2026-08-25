@@ -29,10 +29,50 @@ Working line:
 > This production app started with one prompt — and it stays trustworthy because it is already grounded
 > in governed Fabric data and governed Fabric actions.
 
+## The Caldova problem (locked scenario)
+
+> Rewritten because the previous framing — one manager noticing one product running out in one shop —
+> was solvable by walking down the aisle. If the audience can solve the problem without the app, the
+> app looks unnecessary and Rayfin looks like plumbing nobody asked for.
+
+**Who:** a **regional manager** responsible for **all 15 Caldova shops**, each carrying ~60 everyday
+health products. That is **900 product-shop combinations**, built from ~63,000 sales rows, changing
+every day.
+
+**Why it is genuinely hard:**
+- **Volume hides it.** Somewhere in those 900 combinations a handful are quietly about to run out, and
+  a different handful are overstocked. Nobody scrolls 900 rows every morning.
+- **Context creates the signal.** "Low stock" is not a number. Forty units of a fast seller in one shop
+  is an emergency; ten units of a slow seller is fine. The signal only exists once stock is combined
+  with how fast that product sells *in that shop*.
+- **Both directions cost money.** Running out loses the sale and sends the customer elsewhere;
+  over-ordering wastes stock that expires.
+- **The last mile is ungoverned.** Caldova already has the data and read-only reports. To act, she
+  exports to Excel, emails the supply team, and someone re-types it into another system. The numbers
+  are governed right up until a decision is made — then the decision leaves the building, taking the
+  audit trail, the shared definition of the numbers, and any record of who decided what.
+
+**What Rayfin fixes, in the order the audience must feel it:**
+1. **Makes the signal visible.** All 900 combinations are brought together and ranked, so the answer
+   arrives in seconds instead of hiding in rows.
+2. **Lets the decision happen in the same place.** She acts as herself, and the system knows who she is
+   and which shops she may act for.
+3. **Keeps the chain intact.** Data access, identity, the decision record, and the restock trigger are
+   one secured chain. Break any link and the decision is no longer trustworthy.
+
+**Already supported by the built app — no code change required.** The dashboard ranks the full
+900-combination field, shows which shops and which categories are under pressure, and carries the
+action. The scenario was under-described, not under-built.
+
+**Rule for every future draft:** if the problem on screen could be solved by looking at a shelf,
+sending an email, or opening one spreadsheet, it is the wrong problem.
+
 ## Preserved decisions that still hold
 - **Use case = Caldova pharmacies (OTC retail).** Caldova is imposed (fictional pharma). We keep the
   **retail/OTC pharmacy** angle because it is easy and safe for a live demo: no patient data, no
-  clinical decisions, but still a strong governance story.
+  clinical decisions, but still a strong governance story. The scenario itself is locked above: a
+  **regional manager over 15 shops and 900 product-shop combinations**, never a single obvious
+  low-stock item.
 - **Single thread:** scaffold → governed read → governed action.
 - **Beat 1 uses `start.md`** from microsoft/rayfin PR #40 to show Rayfin/Fabric-aware planning and
   scaffold generation, then stops on purpose.
@@ -47,7 +87,7 @@ Working line:
 | Time | Section | Purpose | Transition |
 | --- | --- | --- | --- |
 | 0:00–0:30 | **Dashboard tease** | Show the destination immediately: a real Caldova dashboard and one critical SKU already in view. | “This started with one prompt. Let me rewind to why that matters.” |
-| 0:30–2:15 | **Caldova manager story** | Ground the problem in one manager trying to act on low-stock risk, then hitting identity, shared-metric, and audit friction. | “So the question is: can we keep the prototype speed without losing the production rails?” |
+| 0:30–2:15 | **Caldova manager story** | Ground the problem in the regional manager: 900 product-shop combinations hide the signal, and even when she finds it the reports are read-only, so the decision escapes into Excel and email. | “So the question is: can we keep the prototype speed without losing the production rails?” |
 | 2:15–3:20 | **Transformation mental model** | Show the mechanism: `Intent + governed Fabric data → Copilot + Rayfin guardrails → deployed app`. | “Here is the proof standard for the next seven minutes.” |
 | 3:20–4:00 | **Proof setup** | Tell the audience what to watch for: describe the app, read governed data, act, and prove the action landed truthfully. | “First, blank page to real scaffold.” |
 | 4:00–5:30 | **Plan + scaffold** | Prove the speed claim by showing `start.md`, Fabric/Rayfin detection, the plan, and visible generated scaffold/files. | “I’m stopping there on purpose and switching to the already provisioned build that points at the same Fabric assets.” |
@@ -64,11 +104,14 @@ Working line:
 
 ## Narrative spine
 1. **Outcome first:** the audience sees a working production-style app before any explanation.
-2. **Why prototypes stall:** real identity, shared data, and auditability usually kill the early speed.
-3. **Mechanism:** Rayfin gives Copilot production-aware rails connected to governed Fabric assets.
-4. **Proof:** blank page to scaffold, governed read, governed action.
-5. **Credibility:** brief architecture reveal after the complete loop.
-6. **Close:** **Describe it. Ship it. Trust it.**
+2. **Why the problem is hard:** the signal is buried in 900 combinations, and acting on it means
+   leaving the governed estate for Excel and email.
+3. **Why the app usually never ships:** real identity, shared data, and auditability kill the early
+   speed.
+4. **Mechanism:** Rayfin gives Copilot production-aware rails connected to governed Fabric assets.
+5. **Proof:** blank page to scaffold, governed read, governed action.
+6. **Credibility:** brief architecture reveal after the complete loop.
+7. **Close:** **Describe it. Ship it. Trust it.**
 
 ## Still-valid technical findings
 - **Rayfin read-from-Fabric = `fabric-semanticmodel` connector**, DAX `executeQuery`, delegated auth,
