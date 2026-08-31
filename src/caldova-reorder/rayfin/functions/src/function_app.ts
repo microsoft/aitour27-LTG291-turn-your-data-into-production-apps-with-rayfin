@@ -1,0 +1,46 @@
+import { UserDataFunctions, RayfinContext } from '@microsoft/fabric-user-data-functions';
+import { sendToPurchasing } from './purchasing-client.js';
+import { signedInManager } from './identity.js';
+import type { AppSchema } from './data-schema.js';
+
+const udf = new UserDataFunctions();
+
+/**
+ * Sends a reorder to purchasing and records it in Fabric.
+ *
+ * Reorders go through here rather than a direct client write, so that every
+ * request reaches purchasing and lands in the semantic model as one traceable
+ * row — with who asked for it, and when.
+ */
+udf.func(
+  'sendReorder',
+  async (ctx: RayfinContext<AppSchema>, storeId: string, sku: string, units: number) => {
+    const manager = signedInManager(ctx);
+
+    // 1. Ask Caldova's purchasing system for the units.
+    const order = await sendToPurchasing(
+      ctx.getSecret('PURCHASING_API_URL') ?? '',
+      ctx.getSecret('PURCHASING_API_KEY') ?? '',
+      { storeId, sku, units, requestedBy: manager.upn },
+    );
+
+    // 2. Record the request in Fabric, against the manager who sent it.
+    const request = await ctx.getDataClient().RestockRequest.create({
+      store_id: storeId,
+      sku,
+      qty: units,
+      requested_by: manager.upn,
+      requested_by_id: manager.id,
+      requested_at: new Date(),
+      status: 'submitted',
+      note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
+    });
+
+    return {
+      requestId: request.id,
+      purchaseOrderId: order.purchaseOrderId,
+      expectedDelivery: order.expectedDelivery,
+    };
+  },
+  [],
+);
