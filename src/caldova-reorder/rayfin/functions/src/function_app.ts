@@ -1,7 +1,11 @@
-import { UserDataFunctions, RayfinContext } from '@microsoft/fabric-user-data-functions';
+import {
+    UserDataFunctions,
+    RayfinContext,
+    AudienceType,
+} from '@microsoft/fabric-user-data-functions';
 import { purchasing, sendToPurchasing } from './purchasing-client.js';
 import { acceptPurchaseOrder } from './purchasing-mock.js';
-import { signedInManager } from './identity.js';
+import { describe, signedInManager } from './identity.js';
 import type { AppSchema } from './data-schema.js';
 
 const udf = new UserDataFunctions();
@@ -27,16 +31,21 @@ udf.func(
         });
 
         // 2. Record the request in Fabric, against the manager who sent it.
-        const request = await ctx.getDataClient().RestockRequest.create({
-            store_id: storeId,
-            sku,
-            qty: units,
-            requested_by: manager.upn,
-            requested_by_id: manager.id,
-            requested_at: new Date(),
-            status: 'submitted',
-            note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
-        });
+        const request = await ctx
+            .getDataClient()
+            .RestockRequest.create({
+                store_id: storeId,
+                sku,
+                qty: units,
+                requested_by: manager.upn,
+                requested_by_id: manager.id,
+                requested_at: new Date(),
+                status: 'submitted',
+                note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
+            })
+            .catch((cause: unknown) => {
+                throw new Error(`Could not record the reorder — ${describe(cause, manager)}`);
+            });
 
         return {
             requestId: request.id,
@@ -44,7 +53,9 @@ udf.func(
             expectedDelivery: order.expectedDelivery,
         };
     },
-    [],
+    // Binds the signed-in user's Fabric identity, so the recorded row carries
+    // the UPN the semantic model's row-level security matches on.
+    [udf.connection({ audienceType: AudienceType.Fabric })],
 );
 
 /**

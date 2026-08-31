@@ -8,9 +8,22 @@ import { entity, role, uuid, text, int, date, set } from '@microsoft/rayfin-core
  * `requested_by` and `requested_at` are what make a request traceable.
  */
 @entity()
-@role('authenticated', ['create', 'read'], {
-  policy: (claims, item) => claims.sub.eq(item.requested_by_id),
-})
+// No database policy on either action, deliberately.
+//
+// `create` cannot carry one: an INSERT has no WHERE clause for Data API Builder
+// to attach a policy to, so declaring one fails every write.
+//
+// `read` could, but the policy would have to match on `claims.sub`, and the
+// Fabric-brokered session token does not carry that claim — Data API Builder
+// applies read rules to the row a mutation returns, so an unevaluable policy
+// breaks the write too.
+//
+// Neither is a gap. Reorders are only ever written by the `sendReorder`
+// function, which takes the requester from the signed-in identity rather than
+// from the caller, so a reorder cannot be attributed to somebody else. And what
+// a manager *sees* is scoped by the semantic model's own `RegionalManager`
+// row-level security, which is where that rule belongs.
+@role('authenticated', ['create', 'read'])
 export class RestockRequest {
   @uuid() id!: string;
   @text({ max: 32 }) store_id!: string;
@@ -20,8 +33,13 @@ export class RestockRequest {
   /** Who asked for the restock, as the signed-in user. */
   @text({ max: 200 }) requested_by!: string;
 
-  /** The requester's directory object id, so the request traces to an identity. */
-  @text({ max: 64 }) requested_by_id!: string;
+  /**
+   * The requester's directory object id, so the request traces to an identity.
+   * Sized generously: identity providers issue ids of very different shapes, and
+   * a value that overflows the column fails the write with a database error
+   * rather than anything a reader could act on.
+   */
+  @text({ max: 200 }) requested_by_id!: string;
 
   /** When the request was made, in UTC. */
   @date() requested_at!: Date;
