@@ -9,7 +9,7 @@ The Fabric semantic model behind the LTG291 demo. It is where Caldova's numbers 
 | `caldova-operations.SemanticModel/` | The model definition, in TMDL (required for Direct Lake) |
 | `dax/` | Queries used to smoke-test the deployment, and handy to run on stage |
 
-The model reads five Delta tables in the lakehouse, loaded from `data/generated/`:
+The model reads four Delta tables in the lakehouse, loaded from `data/generated/`:
 
 | Model table | Delta table |
 | --- | --- |
@@ -17,7 +17,8 @@ The model reads five Delta tables in the lakehouse, loaded from `data/generated/
 | `Products` | `products` |
 | `Inventory` | `inventory` |
 | `Sales` | `sales` |
-| `RestockRequests` | `restock_requests` |
+
+`RestockRequests` is different: it is not seeded. The app in [`../caldova-reorder/`](../caldova-reorder/) writes reorders into its own Fabric SQL database, which Fabric mirrors into OneLake as Delta, and the model reads that copy with Direct Lake. A reorder a manager sends therefore lands in the model without a refresh or a copy step, which is what makes the dashboard number move on stage.
 
 ## The definitions that matter
 
@@ -53,7 +54,16 @@ Assign it only to a test identity that exists in `stores.csv`. A user who manage
 
 ## Deploying
 
-Use `deploy.sh` (macOS, Linux) or `deploy.ps1` (Windows) from the repository root. Both do the same thing: load the CSVs into Delta tables, bind this model to the lakehouse, deploy it, refresh it to frame Direct Lake, and smoke-test it.
+Use `deploy.sh` (macOS, Linux) or `deploy.ps1` (Windows) from the repository root. Both do the same thing: load the CSVs into Delta tables, bind this model to the lakehouse and to the app's SQL database, deploy it, refresh it to frame Direct Lake, and smoke-test it.
+
+Deploy the Rayfin app **first**, because the model binds to its SQL database:
+
+```bash
+cd src/caldova-reorder && npx rayfin up      # creates the app and its SQL database
+fabio item list --workspace <workspace> --all # find the caldova-reorder SQLDatabase + SQLEndpoint ids
+```
+
+Put those two ids in `.env` as `RAYFIN_SQL_DATABASE_ID` and `RAYFIN_SQL_ENDPOINT_ID`, then:
 
 ```bash
 cp .env.example .env     # then fill it in

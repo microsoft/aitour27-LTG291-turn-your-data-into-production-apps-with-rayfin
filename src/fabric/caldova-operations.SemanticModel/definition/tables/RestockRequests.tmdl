@@ -4,7 +4,7 @@ table RestockRequests
 		dataType: string
 		isKey
 		summarizeBy: none
-		sourceColumn: request_id
+		sourceColumn: id
 
 	column store_id
 		dataType: string
@@ -89,5 +89,6 @@ table RestockRequests
 	partition RestockRequests = entity
 		mode: directLake
 		source
-			entityName: restock_requests
-			expressionSource: DatabaseQuery
+			entityName: RestockRequests
+			schemaName: dbo
+			expressionSource: RayfinDatabase

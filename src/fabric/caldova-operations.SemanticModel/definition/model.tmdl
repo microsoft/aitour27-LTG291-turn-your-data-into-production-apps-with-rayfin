@@ -10,13 +10,22 @@ model Model
 
 annotation __PBI_TimeIntelligenceEnabled = 0
 
-annotation PBI_QueryOrder = ["DatabaseQuery"]
+annotation PBI_QueryOrder = ["DatabaseQuery", "RayfinDatabase"]
 
 /// Bound at deploy time by deploy.sh / deploy.ps1. The placeholder is replaced with a
 /// OneLake path, or with a SQL analytics endpoint when FABRIC_MODEL_STORAGE_MODE=sql.
 expression DatabaseQuery =
 		let
 			Source = {{DATABASE_QUERY_SOURCE}}
+		in
+			Source
+
+/// The Rayfin app's own SQL database, which Fabric mirrors into OneLake as Delta.
+/// Reorders written by the app land here, so the model reads them from the same
+/// place the app writes them. Bound at deploy time, like DatabaseQuery above.
+expression RayfinDatabase =
+		let
+			Source = {{RESTOCK_QUERY_SOURCE}}
 		in
 			Source
 
