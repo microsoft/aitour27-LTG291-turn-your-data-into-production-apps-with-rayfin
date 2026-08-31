@@ -31,16 +31,16 @@ $WorkDir = Join-Path $RootDir '.deploy-work'
 $ModelFolderName = 'caldova-operations.SemanticModel'
 $ModelSourceDir = Join-Path $FabricDir $ModelFolderName
 $DatabaseQueryToken = '{{DATABASE_QUERY_SOURCE}}'
+$RestockQueryToken = '{{RESTOCK_QUERY_SOURCE}}'
 
 $TableSpecs = [ordered]@{
     stores            = 'stores.csv'
     products          = 'products.csv'
     inventory         = 'inventory.csv'
     sales             = 'sales.csv'
-    restock_requests  = 'restock_requests.csv'
 }
 $RestockColumns = @(
-    'request_id', 'store_id', 'sku', 'qty', 'requested_by',
+    'id', 'store_id', 'sku', 'qty', 'requested_by',
     'requested_by_id', 'requested_at', 'status', 'note'
 )
 
@@ -114,7 +114,7 @@ function Import-EnvFile {
             }
         }
 
-        if ($key -like 'FABRIC_*' -or $key -like 'FABIO_*') {
+        if ($key -like 'FABRIC_*' -or $key -like 'FABIO_*' -or $key -like 'RAYFIN_*') {
             $script:Config[$key] = $value
             if ($key -like 'FABIO_*' -and $value) {
                 Set-Item -Path "env:$key" -Value $value
@@ -226,6 +226,9 @@ This script deliberately does not run remote installers for you.
     }
     if ((Get-Content -LiteralPath $modelFile -Raw) -notlike "*$DatabaseQueryToken*") {
         Stop-WithError "model.tmdl no longer contains the $DatabaseQueryToken placeholder; the deploy cannot bind it to a lakehouse."
+    }
+    if ((Get-Content -LiteralPath $modelFile -Raw) -notlike "*$RestockQueryToken*") {
+        Stop-WithError "model.tmdl no longer contains the $RestockQueryToken placeholder; the deploy cannot bind reorders to the Rayfin database."
     }
 }
 
@@ -404,21 +407,28 @@ function Test-Tables {
     if ($missing.Count -gt 0) {
         Stop-WithError "These Delta tables did not land in the lakehouse: $($missing -join ' ')"
     }
-    Write-Log 'All five Delta tables are present'
+    Write-Log 'All four Delta tables are present'
 }
 
-# The semantic model binds restock_requests by name and type, so check the shape we
-# actually got rather than assuming Fabric inferred it the way we wanted.
+# The semantic model binds RestockRequests by name and type, so check the shape the
+# Rayfin app actually created rather than assuming it matches the model definition.
+# The table lives in the Rayfin app's SQL database, which Fabric mirrors into OneLake.
 function Show-RestockSchema {
-    $sql = "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'restock_requests' ORDER BY ORDINAL_POSITION"
-    $types = Get-FabioValue "[].join(' ', [COLUMN_NAME, DATA_TYPE])" lakehouse query --workspace $script:WorkspaceId --id $script:LakehouseId --sql $sql
-
-    if (-not $types) {
-        Write-Warn 'Could not read the restock_requests schema from the SQL endpoint. It may still be catching up.'
+    $endpointId = $script:Config['RAYFIN_SQL_ENDPOINT_ID']
+    if (-not $endpointId) {
+        Write-Warn 'RAYFIN_SQL_ENDPOINT_ID is not set; skipping the RestockRequests shape check.'
         return
     }
 
-    Write-Log 'restock_requests columns:'
+    $sql = "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestockRequests' ORDER BY ORDINAL_POSITION"
+    $types = Get-FabioValue "[].join(' ', [COLUMN_NAME, DATA_TYPE])" sql-endpoint query --workspace $script:WorkspaceId --id $endpointId --sql $sql
+
+    if (-not $types) {
+        Write-Warn 'Could not read the RestockRequests schema from the Rayfin SQL endpoint. Mirroring may still be catching up.'
+        return
+    }
+
+    Write-Log 'RestockRequests columns:'
     $lines = $types -split "`n" | Where-Object { $_ }
     foreach ($line in $lines) { Write-Host "[deploy]   $line" }
 
@@ -428,7 +438,7 @@ function Show-RestockSchema {
     }
 
     if ($missing.Count -gt 0) {
-        Stop-WithError "restock_requests is missing these columns: $($missing -join ' ')"
+        Stop-WithError "RestockRequests is missing these columns: $($missing -join ' ')"
     }
 }
 
@@ -456,18 +466,30 @@ function Set-StagedSemanticModel {
         $sourceExpression = "Sql.Database(`"$($script:SqlEndpointConnectionString)`", `"$($script:SqlEndpointId)`")"
     }
 
+    # Reorders are written by the Rayfin app into its own Fabric SQL database, which
+    # Fabric mirrors into OneLake as Delta. Direct Lake reads that copy, so the model and
+    # the app never disagree about what was ordered.
+    $rayfinDatabaseId = $script:Config['RAYFIN_SQL_DATABASE_ID']
+    if (-not $rayfinDatabaseId) {
+        Stop-WithError "RAYFIN_SQL_DATABASE_ID is not set. Deploy the Rayfin app with 'npx rayfin up' and copy its SQL database id into .env."
+    }
+    $restockExpression = "AzureStorage.DataLake(`"https://onelake.dfs.fabric.microsoft.com/$($script:WorkspaceId)/$rayfinDatabaseId`")"
+
     $modelFile = Join-Path $stagedItem 'definition/model.tmdl'
     $modelText = Get-Content -LiteralPath $modelFile -Raw
-    Set-Content -LiteralPath $modelFile -Value $modelText.Replace($DatabaseQueryToken, $sourceExpression) -NoNewline
+    $modelText = $modelText.Replace($DatabaseQueryToken, $sourceExpression)
+    Set-Content -LiteralPath $modelFile -Value $modelText.Replace($RestockQueryToken, $restockExpression) -NoNewline
 
     $platformFile = Join-Path $stagedItem '.platform'
     $platformText = Get-Content -LiteralPath $platformFile -Raw
     Set-Content -LiteralPath $platformFile -Value $platformText.Replace('caldova-operations', $modelName) -NoNewline
 
     # A SQL-endpoint binding addresses tables through a schema; a schema-less lakehouse
-    # read straight from OneLake does not have one.
+    # read straight from OneLake does not have one. RestockRequests is skipped: it reads
+    # the Rayfin SQL database, whose mirrored tables always sit under a dbo schema, so it
+    # carries its own schemaName already.
     if ($mode -eq 'sql') {
-        foreach ($tableFile in Get-ChildItem -Path (Join-Path $stagedItem 'definition/tables') -Filter '*.tmdl') {
+        foreach ($tableFile in Get-ChildItem -Path (Join-Path $stagedItem 'definition/tables') -Filter '*.tmdl' | Where-Object { $_.Name -ne 'RestockRequests.tmdl' }) {
             $lines = Get-Content -LiteralPath $tableFile.FullName
             $rewritten = foreach ($line in $lines) {
                 $line
@@ -641,7 +663,7 @@ function Show-DryRun {
     Write-Log "Storage mode:   $(Get-Config 'FABRIC_MODEL_STORAGE_MODE')"
 
     Test-DatasetFiles
-    Write-Log 'All five dataset CSVs are present in data/generated'
+    Write-Log 'All four dataset CSVs are present in data/generated'
 
     $script:WorkspaceId = '00000000-0000-0000-0000-000000000000'
     $script:LakehouseId = '11111111-1111-1111-1111-111111111111'
@@ -688,7 +710,7 @@ function Show-DryRun {
         }
         Write-Preview 'sql-endpoint refresh-metadata --workspace <workspace> --id <sql-endpoint>'
         Write-Preview 'lakehouse list-tables --workspace <workspace> --id <lakehouse> --all'
-        Write-Preview 'lakehouse query --workspace <workspace> --id <lakehouse> --sql <restock_requests schema>'
+        Write-Preview 'sql-endpoint query --workspace <workspace> --id <rayfin-sql-endpoint> --sql <RestockRequests schema>'
     }
 
     Write-Preview 'deploy validate --source <staged model>'

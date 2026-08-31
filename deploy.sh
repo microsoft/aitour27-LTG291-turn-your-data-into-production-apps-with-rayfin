@@ -19,9 +19,10 @@ WORK_DIR="$ROOT_DIR/.deploy-work"
 MODEL_FOLDER_NAME="caldova-operations.SemanticModel"
 MODEL_SOURCE_DIR="$FABRIC_DIR/$MODEL_FOLDER_NAME"
 DATABASE_QUERY_TOKEN="{{DATABASE_QUERY_SOURCE}}"
+RESTOCK_QUERY_TOKEN="{{RESTOCK_QUERY_SOURCE}}"
 
-TABLE_SPECS="stores:stores.csv products:products.csv inventory:inventory.csv sales:sales.csv restock_requests:restock_requests.csv"
-RESTOCK_COLUMNS="request_id store_id sku qty requested_by requested_by_id requested_at status note"
+TABLE_SPECS="stores:stores.csv products:products.csv inventory:inventory.csv sales:sales.csv"
+RESTOCK_COLUMNS="id store_id sku qty requested_by requested_by_id requested_at status note"
 
 DRY_RUN=0
 RESET_ONLY=0
@@ -38,6 +39,8 @@ FABRIC_CAPACITY_ID="${FABRIC_CAPACITY_ID:-}"
 FABRIC_LAKEHOUSE_ID="${FABRIC_LAKEHOUSE_ID:-}"
 FABRIC_SQL_ENDPOINT_ID="${FABRIC_SQL_ENDPOINT_ID:-}"
 FABRIC_SEMANTIC_MODEL_ID="${FABRIC_SEMANTIC_MODEL_ID:-}"
+RAYFIN_SQL_DATABASE_ID="${RAYFIN_SQL_DATABASE_ID:-}"
+RAYFIN_SQL_ENDPOINT_ID="${RAYFIN_SQL_ENDPOINT_ID:-}"
 
 WORKSPACE_ID=""
 LAKEHOUSE_ID=""
@@ -115,7 +118,7 @@ load_env_file() {
     esac
 
     case "$key" in
-      FABRIC_*)
+      FABRIC_*|RAYFIN_*)
         eval "$key=\$value"
         ;;
       FABIO_*)
@@ -219,6 +222,9 @@ EOF
 
   grep -q "$DATABASE_QUERY_TOKEN" "$MODEL_SOURCE_DIR/definition/model.tmdl" \
     || die "model.tmdl no longer contains the $DATABASE_QUERY_TOKEN placeholder; the deploy cannot bind it to a lakehouse."
+
+  grep -q "$RESTOCK_QUERY_TOKEN" "$MODEL_SOURCE_DIR/definition/model.tmdl" \
+    || die "model.tmdl no longer contains the $RESTOCK_QUERY_TOKEN placeholder; the deploy cannot bind reorders to the Rayfin database."
 }
 
 # fabio is never asked to sign in here. If it is not ready, that is the operator's call.
@@ -395,22 +401,29 @@ verify_tables() {
   done
 
   [[ -z "$missing" ]] || die "These Delta tables did not land in the lakehouse:$missing"
-  log "All five Delta tables are present"
+  log "All four Delta tables are present"
 }
 
-# The semantic model binds restock_requests by name and type, so check the shape we
-# actually got rather than assuming Fabric inferred it the way we wanted.
+# The semantic model binds RestockRequests by name and type, so check the shape the
+# Rayfin app actually created rather than assuming it matches the model definition.
+# The table lives in the Rayfin app's SQL database, which Fabric mirrors into OneLake.
 report_restock_schema() {
   local sql column types missing=""
-  sql="SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'restock_requests' ORDER BY ORDINAL_POSITION"
 
-  types="$(fabio_value "[].join(' ', [COLUMN_NAME, DATA_TYPE])" lakehouse query --workspace "$WORKSPACE_ID" --id "$LAKEHOUSE_ID" --sql "$sql")"
-  if [[ -z "$types" ]]; then
-    warn "Could not read the restock_requests schema from the SQL endpoint. It may still be catching up."
+  if [[ -z "$RAYFIN_SQL_ENDPOINT_ID" ]]; then
+    warn "RAYFIN_SQL_ENDPOINT_ID is not set; skipping the RestockRequests shape check."
     return 0
   fi
 
-  log "restock_requests columns:"
+  sql="SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestockRequests' ORDER BY ORDINAL_POSITION"
+
+  types="$(fabio_value "[].join(' ', [COLUMN_NAME, DATA_TYPE])" sql-endpoint query --workspace "$WORKSPACE_ID" --id "$RAYFIN_SQL_ENDPOINT_ID" --sql "$sql")"
+  if [[ -z "$types" ]]; then
+    warn "Could not read the RestockRequests schema from the Rayfin SQL endpoint. Mirroring may still be catching up."
+    return 0
+  fi
+
+  log "RestockRequests columns:"
   printf '%s\n' "$types" | while IFS= read -r column; do
     [[ -n "$column" ]] && printf '[deploy]   %s\n' "$column"
   done
@@ -419,7 +432,7 @@ report_restock_schema() {
     printf '%s\n' "$types" | grep -q "^$column " || missing="$missing $column"
   done
 
-  [[ -z "$missing" ]] || die "restock_requests is missing these columns:$missing"
+  [[ -z "$missing" ]] || die "RestockRequests is missing these columns:$missing"
 }
 
 # ---------------------------------------------------------------------------
@@ -445,7 +458,7 @@ replace_token() {
 stage_semantic_model() {
   local staged_root="$WORK_DIR/deploy-source"
   local staged_item="$staged_root/$FABRIC_SEMANTIC_MODEL_NAME.SemanticModel"
-  local source_expression table_file
+  local source_expression restock_expression table_file
 
   rm -rf "$staged_root"
   mkdir -p "$staged_item"
@@ -458,13 +471,23 @@ stage_semantic_model() {
     source_expression="Sql.Database(\"$SQL_ENDPOINT_CONNECTION_STRING\", \"$SQL_ENDPOINT_ID\")"
   fi
 
+  # Reorders are written by the Rayfin app into its own Fabric SQL database, which
+  # Fabric mirrors into OneLake as Delta. Direct Lake reads that copy, so the model and
+  # the app never disagree about what was ordered.
+  [[ -n "$RAYFIN_SQL_DATABASE_ID" ]] || die "RAYFIN_SQL_DATABASE_ID is not set. Deploy the Rayfin app with 'npx rayfin up' and copy its SQL database id into .env."
+  restock_expression="AzureStorage.DataLake(\"https://onelake.dfs.fabric.microsoft.com/$WORKSPACE_ID/$RAYFIN_SQL_DATABASE_ID\")"
+
   replace_token "$staged_item/definition/model.tmdl" "$DATABASE_QUERY_TOKEN" "$source_expression"
+  replace_token "$staged_item/definition/model.tmdl" "$RESTOCK_QUERY_TOKEN" "$restock_expression"
   replace_token "$staged_item/.platform" "caldova-operations" "$FABRIC_SEMANTIC_MODEL_NAME"
 
   # A SQL-endpoint binding addresses tables through a schema; a schema-less lakehouse
-  # read straight from OneLake does not have one.
+  # read straight from OneLake does not have one. RestockRequests is skipped: it reads
+  # the Rayfin SQL database, whose mirrored tables always sit under a dbo schema, so it
+  # carries its own schemaName already.
   if [[ "$FABRIC_MODEL_STORAGE_MODE" == "sql" ]]; then
     for table_file in "$staged_item"/definition/tables/*.tmdl; do
+      [[ "$(basename "$table_file")" == "RestockRequests.tmdl" ]] && continue
       awk '{ print; if ($0 ~ /entityName: /) print "\t\t\tschemaName: dbo" }' "$table_file" >"$table_file.tmp"
       mv "$table_file.tmp" "$table_file"
     done
@@ -625,7 +648,7 @@ print_dry_run() {
   log "Storage mode:   $FABRIC_MODEL_STORAGE_MODE"
 
   check_dataset_files
-  log "All five dataset CSVs are present in data/generated"
+  log "All four dataset CSVs are present in data/generated"
 
   WORKSPACE_ID="00000000-0000-0000-0000-000000000000"
   LAKEHOUSE_ID="11111111-1111-1111-1111-111111111111"
@@ -668,7 +691,7 @@ print_dry_run() {
     done
     preview "sql-endpoint refresh-metadata --workspace <workspace> --id <sql-endpoint>"
     preview "lakehouse list-tables --workspace <workspace> --id <lakehouse> --all"
-    preview "lakehouse query --workspace <workspace> --id <lakehouse> --sql <restock_requests schema>"
+    preview "sql-endpoint query --workspace <workspace> --id <rayfin-sql-endpoint> --sql <RestockRequests schema>"
   fi
 
   preview "deploy validate --source <staged model>"
