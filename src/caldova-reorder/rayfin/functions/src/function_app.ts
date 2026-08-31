@@ -1,5 +1,6 @@
 import { UserDataFunctions, RayfinContext } from '@microsoft/fabric-user-data-functions';
-import { sendToPurchasing } from './purchasing-client.js';
+import { purchasing, sendToPurchasing } from './purchasing-client.js';
+import { acceptPurchaseOrder } from './purchasing-mock.js';
 import { signedInManager } from './identity.js';
 import type { AppSchema } from './data-schema.js';
 
@@ -13,34 +14,48 @@ const udf = new UserDataFunctions();
  * row — with who asked for it, and when.
  */
 udf.func(
-  'sendReorder',
-  async (ctx: RayfinContext<AppSchema>, storeId: string, sku: string, units: number) => {
-    const manager = signedInManager(ctx);
+    'sendReorder',
+    async (ctx: RayfinContext<AppSchema>, storeId: string, sku: string, units: number) => {
+        const manager = signedInManager(ctx);
 
-    // 1. Ask Caldova's purchasing system for the units.
-    const order = await sendToPurchasing(
-      ctx.getSecret('PURCHASING_API_URL') ?? '',
-      ctx.getSecret('PURCHASING_API_KEY') ?? '',
-      { storeId, sku, units, requestedBy: manager.upn },
-    );
+        // 1. Ask Caldova's purchasing system for the units.
+        const order = await sendToPurchasing(purchasing(ctx), {
+            storeId,
+            sku,
+            units,
+            requestedBy: manager.upn,
+        });
 
-    // 2. Record the request in Fabric, against the manager who sent it.
-    const request = await ctx.getDataClient().RestockRequest.create({
-      store_id: storeId,
-      sku,
-      qty: units,
-      requested_by: manager.upn,
-      requested_by_id: manager.id,
-      requested_at: new Date(),
-      status: 'submitted',
-      note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
-    });
+        // 2. Record the request in Fabric, against the manager who sent it.
+        const request = await ctx.getDataClient().RestockRequest.create({
+            store_id: storeId,
+            sku,
+            qty: units,
+            requested_by: manager.upn,
+            requested_by_id: manager.id,
+            requested_at: new Date(),
+            status: 'submitted',
+            note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
+        });
 
-    return {
-      requestId: request.id,
-      purchaseOrderId: order.purchaseOrderId,
-      expectedDelivery: order.expectedDelivery,
-    };
-  },
-  [],
+        return {
+            requestId: request.id,
+            purchaseOrderId: order.purchaseOrderId,
+            expectedDelivery: order.expectedDelivery,
+        };
+    },
+    [],
+);
+
+/**
+ * Caldova's purchasing system, stood in for the demo.
+ *
+ * Hosting it here keeps the call above a real HTTP round trip with no
+ * dependency on anything outside this workspace.
+ */
+udf.func(
+    'purchaseOrders',
+    async (store_id: string, sku: string, units: number, requested_by: string) =>
+        acceptPurchaseOrder({ store_id, sku, units, requested_by }),
+    [],
 );

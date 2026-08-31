@@ -39,6 +39,12 @@ does two things: it calls Caldova's purchasing system, then records the request
 with who asked and when. The identity comes from the session token, not from the
 caller.
 
+Purchasing itself is stood in by a second function, `purchaseOrders`
+([`purchasing-mock.ts`](rayfin/functions/src/purchasing-mock.ts)), hosted in the
+same workspace. The outbound call is therefore a real HTTP round trip — real
+client, real request shape, real error handling — with nothing outside Fabric to
+depend on at a venue. Point `PURCHASING_API_URL` at the real system to switch.
+
 The recorded request lands in the app's own Fabric SQL database. Fabric mirrors
 that into OneLake as Delta, and the semantic model reads it with Direct Lake — so
 a reorder shows up in the app, the regional dashboard and analytics as one number.
@@ -48,6 +54,21 @@ a reorder shows up in the app, the regional dashboard and analytics as one numbe
 | Data model | [`rayfin/data/RestockRequest.ts`](rayfin/data/RestockRequest.ts) |
 | Where "running low" is read from | [`src/queries/regional-dashboard/low-stock-queue.dax`](src/queries/regional-dashboard/low-stock-queue.dax) |
 | The reorder function | [`rayfin/functions/src/function_app.ts`](rayfin/functions/src/function_app.ts) |
+
+## Why the screen moves before the model does
+
+Fabric mirrors the app's database into OneLake, and the semantic model reads that
+copy. The mirror takes roughly half a minute — far too long to leave the screen
+still after a manager acts.
+
+So a sent reorder is held in [`use-pending-reorders`](src/hooks/use-pending-reorders.tsx)
+and painted immediately: the row flips to **On order**, the tile increments, the
+row appears in recent reorders. Each pending entry is dropped the moment the
+model reports its `requestId`, so nothing is ever counted twice. Nothing is
+invented — the app is anticipating an answer it already knows the model will give.
+
+A reorder does not restock the shelf, so `Days of Stock` deliberately does **not**
+change on send. The row's honest state change is "On order".
 
 ## Running it
 
@@ -82,8 +103,9 @@ The Rayfin packages are pinned to the `1.35.0-alpha.*` preview line. Install wit
 `npm ci` so the lockfile decides the versions — a plain `npm install` can pull a
 newer alpha, and this line still makes breaking changes between builds.
 
-The purchasing endpoint is mocked. Set `RAYFIN_SECRET_PURCHASING_API_URL` and
-`RAYFIN_SECRET_PURCHASING_API_KEY` in `rayfin/.env`, then `npx rayfin up secrets apply`.
+No secrets are required: `PURCHASING_API_URL` is optional and falls back to the
+stood-in endpoint in this workspace. To point at a real purchasing system, set
+`RAYFIN_SECRET_PURCHASING_API_URL` in `rayfin/.env` and run `npx rayfin secret set`.
 
 After deploying, copy the app's SQL database and SQL endpoint ids into the repo
 root `.env` as `RAYFIN_SQL_DATABASE_ID` and `RAYFIN_SQL_ENDPOINT_ID` so the

@@ -21,8 +21,12 @@ export interface ModelQueryState<T> {
  *
  * The connector runs with delegated auth, so the model applies its own
  * row-level security to the signed-in manager. Nothing here filters by region.
+ *
+ * @param pollMs - When set, re-runs the query on this interval. Used while a
+ *   reorder is waiting for the model to mirror it, and switched off again as
+ *   soon as nothing is pending.
  */
-export function useModelQuery<T>(source: ModelQuery<T>): ModelQueryState<T> {
+export function useModelQuery<T>(source: ModelQuery<T>, pollMs?: number): ModelQueryState<T> {
     const { query, parse } = source;
 
     const [rows, setRows] = useState<T[]>([]);
@@ -73,6 +77,13 @@ export function useModelQuery<T>(source: ModelQuery<T>): ModelQueryState<T> {
         // `parse` is a stable pure mapper recreated by each query factory call.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, reloadToken]);
+
+    useEffect(() => {
+        if (!pollMs) return;
+
+        const timer = setInterval(refresh, pollMs);
+        return () => clearInterval(timer);
+    }, [pollMs, refresh]);
 
     return { rows, isLoading, error, refresh };
 }

@@ -5,35 +5,32 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-import { createRoot } from 'react-dom/client';
+import { createRoot } from "react-dom/client";
 import { ErrorBoundary } from "react-error-boundary";
 
-import App from './App.tsx';
-import { ErrorFallback } from './ErrorFallback';
-import { useAppTheme } from './hooks/use-theme';
-import { ThemeContext } from './hooks/theme.context';
-import { AuthProvider } from './hooks/use-auth';
-import { bootstrapAuth } from './services/rayfin-auth.service';
-import { AuthGate } from './components/auth-gate.component';
+import App from "./App.tsx";
+import { ErrorFallback } from "./ErrorFallback";
+import { AuthProvider } from "./hooks/use-auth";
+import { PendingReordersProvider } from "./hooks/use-pending-reorders";
+import { bootstrapAuth } from "./services/rayfin-auth.service";
+import { AuthGate } from "./components/auth-gate.component";
 
-import "./global.css"
+import "./global.css";
 
 const rayfinAuthService = bootstrapAuth();
 
 function Root() {
-    const { isDark, toggleTheme } = useAppTheme();
-
     return (
-        <ThemeContext.Provider value={{ isDark, toggleTheme }}>
-            <ErrorBoundary FallbackComponent={ErrorFallback}>
-                <AuthProvider rayfinAuthService={rayfinAuthService}>
-                    <AuthGate>
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <AuthProvider rayfinAuthService={rayfinAuthService}>
+                <AuthGate>
+                    <PendingReordersProvider>
                         <App />
-                    </AuthGate>
-                </AuthProvider>
-            </ErrorBoundary>
-        </ThemeContext.Provider>
+                    </PendingReordersProvider>
+                </AuthGate>
+            </AuthProvider>
+        </ErrorBoundary>
     );
 }
 
-createRoot(document.getElementById('root')!).render(<Root />)
+createRoot(document.getElementById("root")!).render(<Root />);

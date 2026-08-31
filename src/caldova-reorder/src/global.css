@@ -8,45 +8,64 @@
    `useCssTheme()` and project them into a JS theme object (Vega's SVG output
    cannot resolve `var()` references). */
 @theme static {
-  --color-brand:            #0f6cbd;  /* bar/area fills, button-like brand surfaces */
-  --color-brand-foreground: #0f6cbd;  /* line/point marks, branded text & emphasis */
-  --color-hover:            #f5f5f5;  /* row/cell hover surface in DataGrid + visuals */
+  --color-brand:            #1B3658;  /* bar/area fills, button-like brand surfaces */
+  --color-brand-foreground: #1B3658;  /* line/point marks, branded text & emphasis */
+  --color-hover:            #F1F5F9;  /* row/cell hover surface in DataGrid + visuals */
 }
 
 @theme {
-  /* Color tokens — light theme
-     Usage: bg-*, text-*, border-* (e.g. bg-primary text-primary-foreground)
-     Each token has a -foreground pair for text on that surface. */
-  --color-background: #ffffff;                                       /* page background */
-  --color-foreground: #242424;                                       /* default text */
+  /* Caldova palette. Every foreground below clears 7:1 on the page background —
+     the room is bright and the projector washes colour out, so AA is not enough.
+     Urgency uses its own ramp so it never competes with the brand navy. */
+
+  --color-background: #F6F8FB;                                       /* page background */
+  --color-foreground: #0F1F33;                                       /* default text */
 
   --color-card: #ffffff;                                             /* card surfaces */
-  --color-card-foreground: #242424;
+  --color-card-foreground: #0F1F33;
 
   --color-popover: #ffffff;                                          /* popover/dropdown surfaces */
-  --color-popover-foreground: #242424;
+  --color-popover-foreground: #0F1F33;
 
-  --color-primary: #0f6cbd;                                          /* primary actions & buttons */
+  --color-primary: #1B3658;                                          /* Caldova navy */
   --color-primary-foreground: #ffffff;
+  --color-primary-hover: #2A4E7E;
+  --color-primary-surface: #EAF0F7;                                  /* tinted navy surface */
 
-  --color-secondary: #fafafa;                                        /* secondary actions */
-  --color-secondary-foreground: #242424;
+  --color-secondary: #F1F5F9;                                        /* secondary actions */
+  --color-secondary-foreground: #1B3658;
 
-  --color-muted: #f0f0f0;                                            /* subtle backgrounds */
-  --color-muted-foreground: #616161;                                 /* subdued text */
+  --color-muted: #EDF1F6;                                            /* subtle backgrounds */
+  --color-muted-foreground: #475569;                                 /* subdued text — 7.58:1 */
 
-  --color-accent: #f5f5f5;                                           /* accent highlights */
-  --color-accent-foreground: #242424;
+  --color-accent: #EAF0F7;                                           /* accent highlights */
+  --color-accent-foreground: #1B3658;
 
-  --color-destructive: #b10e1c;                                      /* errors & destructive actions */
+  /* Urgency ramp — amber through red, each paired with a tinted surface. */
+  --color-critical: #A11B14;                                         /* 7.83:1 */
+  --color-critical-foreground: #ffffff;
+  --color-critical-surface: #FBEAE8;
+
+  --color-warning: #7A4F00;                                          /* 7.13:1 */
+  --color-warning-foreground: #ffffff;
+  --color-warning-surface: #FDF2DC;
+
+  --color-destructive: #A11B14;                                      /* errors & destructive actions */
   --color-destructive-foreground: #ffffff;
+  --color-destructive-surface: #FBEAE8;
 
-  --color-success: #0e700e;                                          /* success surfaces */
+  --color-success: #166534;                                          /* 7.13:1 */
   --color-success-foreground: #ffffff;
+  --color-success-surface: #E4F1E8;
 
-  --color-border: #e0e0e0;                                           /* default border */
-  --color-input: #e0e0e0;                                            /* input field borders */
-  --color-ring: #0f6cbd;                                             /* focus rings */
+  --color-border: #DBE3ED;                                           /* default border */
+  --color-border-strong: #C3D0E0;                                    /* header rules, dividers */
+  --color-input: #C3D0E0;                                            /* input field borders */
+  --color-ring: #2A4E7E;                                             /* focus rings */
+
+  /* Elevation — restrained. Enterprise tools use depth to separate, not decorate. */
+  --shadow-card: 0 1px 2px rgba(15, 31, 51, 0.06), 0 1px 3px rgba(15, 31, 51, 0.05);
+  --shadow-raised: 0 2px 4px rgba(15, 31, 51, 0.06), 0 4px 12px rgba(15, 31, 51, 0.07);
 
   --radius-none: 0;
   --radius-sm: 2px;
@@ -136,45 +155,8 @@
   height: --value(--icon-size-*);
 }
 
-@layer base {
-  .dark {
-    /* Color tokens — dark theme */
-    --color-background: #292929;
-    --color-foreground: #ffffff;
-
-    --color-card: #292929;
-    --color-card-foreground: #ffffff;
-
-    --color-popover: #292929;
-    --color-popover-foreground: #ffffff;
-
-    --color-primary: #115ea3;
-    --color-primary-foreground: #ffffff;
-
-    --color-secondary: #1f1f1f;
-    --color-secondary-foreground: #ffffff;
-
-    --color-muted: #141414;
-    --color-muted-foreground: #adadad;
-
-    --color-accent: #3d3d3d;
-    --color-accent-foreground: #ffffff;
-
-    --color-destructive: #dc626d;
-    --color-destructive-foreground: #ffffff;
-
-    --color-success: #54b054;
-    --color-success-foreground: #ffffff;
-
-    --color-border: #525252;
-    --color-input: #525252;
-    --color-ring: #479ef5;
-
-    --color-brand:            #115ea3;
-    --color-brand-foreground: #479ef5;
-    --color-hover:            #3d3d3d;
-  }
-}
+/* No dark theme. The room is bright and the projector washes dark surfaces out,
+   so the app is pinned to light regardless of the host's appearance setting. */
 
 @layer base {
   * {
