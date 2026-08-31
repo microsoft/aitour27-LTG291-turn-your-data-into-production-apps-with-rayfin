@@ -1,0 +1,37 @@
+id: caldova-reorder
+name: caldova-reorder
+version: 1.0.0
+services:
+  auth:
+    enabled: true
+    fabric:
+      enabled: true
+    allowedRedirectUris:
+      - http://localhost:5173
+      - http://127.0.0.1:5173
+      - https://civic-lark-70d266aa7c-eastus2euap.webapp.daily.fabricapps.net
+      - https://daily-heath-acd98e2851-centraluseuap.webapp.dxt.fabricapps.net
+  data:
+    enabled: true
+    dialect: mssql
+  storage:
+    enabled: false
+  staticHosting:
+    enabled: true
+    folder: dist
+    buildCommand: npm run build:fabric
+    indexDocument: index.html
+  functions:
+    enabled: true
+    buildCommand: npm run build
+connectors:
+  - name: caldovaModel
+    type: fabric-semanticmodel
+    config:
+      workspaceId: 765049da-6748-45e6-92e4-ab429155f3bd
+      itemId: 0bd5566a-bdc0-4dcb-b394-9e20c94568e5
+    auth:
+      type: delegated
+    version: "1"
+    operations:
+      - name: executeQuery
