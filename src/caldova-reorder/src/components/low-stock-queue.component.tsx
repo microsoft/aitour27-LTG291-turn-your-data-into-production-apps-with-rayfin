@@ -119,7 +119,11 @@ function LowStockRow({ item, rank, demand, onSent }: LowStockRowProps) {
             onSent();
         } catch (err) {
             setState("failed");
-            setFailure(err instanceof Error ? err.message : String(err));
+            const message = err instanceof Error ? err.message : String(err);
+            // The row shows the gist; the console keeps the whole thing for
+            // whoever has to work out why purchasing said no.
+            console.error("[reorder] sendReorder failed", err);
+            setFailure(message);
         }
     }
 
@@ -198,7 +202,7 @@ function LowStockRow({ item, rank, demand, onSent }: LowStockRowProps) {
                 {state === "failed" && failure && (
                     <p
                         role="alert"
-                        className="text-right text-400 leading-400 font-semibold text-destructive"
+                        className="max-w-[46ch] text-right text-400 leading-400 font-semibold break-words text-destructive"
                     >
                         Not sent. {shorten(failure)}
                     </p>
@@ -262,10 +266,14 @@ function DaysOfStock({ item, muted }: { item: LowStockItem; muted: boolean }) {
     );
 }
 
-/** Function errors arrive verbose. Keep the row readable from the back of the room. */
+/**
+ * Function errors arrive verbose. Keep enough on the row to act on — a bare
+ * status code sends the reader to the console — but not so much that it takes
+ * over the screen. The full error is logged either way.
+ */
 function shorten(message: string): string {
-    const firstSentence = message.split(/(?<=\.)\s/)[0] ?? message;
-    return firstSentence.length > 90 ? `${firstSentence.slice(0, 87)}…` : firstSentence;
+    const cleaned = message.replace(/\s+/g, " ").trim();
+    return cleaned.length > 220 ? `${cleaned.slice(0, 217)}…` : cleaned;
 }
 
 function LoadingRows() {
