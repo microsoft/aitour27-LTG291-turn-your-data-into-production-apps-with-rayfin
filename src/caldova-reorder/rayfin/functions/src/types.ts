@@ -23,5 +23,9 @@ export type AppFunctionsSchema = {
       expectedDelivery: string;
     };
   };
+  purchaseOrders: {
+    input: { store_id: string; sku: string; units: number; requested_by: string };
+    output: { purchaseOrderId: string; expectedDelivery: string };
+  };
 };
 

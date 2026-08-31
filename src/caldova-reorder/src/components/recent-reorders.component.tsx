@@ -1,36 +1,65 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
-import { useModelQuery } from "@/hooks/use-model-query";
-import { useReloadOn } from "@/hooks/use-reload-on";
-import { recentReorders, type Reorder } from "@/queries/regional-dashboard";
+import { usePendingReorders } from "@/hooks/pending-reorders.context";
+import type { Reorder } from "@/queries/regional-dashboard";
 
 interface RecentReordersProps {
-    /** Bumped after a reorder lands, so the list re-reads the model. */
-    reloadKey: number;
+    reorders: Reorder[];
+    isLoading: boolean;
+    error: string | null;
 }
 
-export function RecentReorders({ reloadKey }: RecentReordersProps) {
-    const { rows, isLoading, error, refresh } = useModelQuery(recentReorders());
-    const arrived = useArrivals(rows);
+const MAX_ROWS = 6;
 
-    useReloadOn(reloadKey, refresh);
+export function RecentReorders({ reorders, isLoading, error }: RecentReordersProps) {
+    const { pending } = usePendingReorders();
+
+    /**
+     * What the model reports, plus anything sent in this session that it has not
+     * mirrored yet. Pending entries are dropped as the model picks them up, so a
+     * reorder is shown once and only once.
+     */
+    const rows = useMemo(() => {
+        const fromModel = new Set(reorders.map((reorder) => reorder.requestId));
+
+        const optimistic: (Reorder & { isPending: true })[] = pending
+            .filter((reorder) => !fromModel.has(reorder.requestId))
+            .map((reorder) => ({
+                requestId: reorder.requestId,
+                storeName: reorder.storeName,
+                productName: reorder.productName,
+                units: reorder.units,
+                requestedBy: reorder.requestedBy,
+                requestedAt: reorder.requestedAt,
+                isPending: true,
+            }));
+
+        return [...optimistic, ...reorders].slice(0, MAX_ROWS);
+    }, [reorders, pending]);
 
     return (
-        <section className="rounded-xl border border-border bg-card">
-            <header className="border-b border-border px-600 py-500">
-                <h2 className="text-600 leading-600 font-semibold text-foreground">Recent reorders</h2>
+        <section className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+            <header className="border-b border-border-strong px-600 py-500">
+                <h2 className="text-600 leading-600 font-semibold text-foreground">
+                    Recent reorders
+                </h2>
                 <p className="mt-100 text-400 leading-400 text-muted-foreground">
                     Recorded in Fabric, with who asked and when.
                 </p>
             </header>
 
             {error ? (
-                <p role="alert" className="px-600 py-700 text-400 leading-400 text-destructive">
+                <p
+                    role="alert"
+                    className="px-600 py-700 text-400 leading-400 font-semibold text-destructive"
+                >
                     Could not read recent reorders. {error}
                 </p>
-            ) : isLoading ? (
-                <p className="px-600 py-700 text-400 leading-400 text-muted-foreground">Reading the model…</p>
+            ) : isLoading && rows.length === 0 ? (
+                <p className="px-600 py-700 text-400 leading-400 text-muted-foreground">
+                    Reading the model…
+                </p>
             ) : rows.length === 0 ? (
                 <p className="px-600 py-700 text-500 leading-500 text-muted-foreground">
                     No reorders sent yet.
@@ -42,7 +71,7 @@ export function RecentReorders({ reloadKey }: RecentReordersProps) {
                             <ReorderRow
                                 key={reorder.requestId}
                                 reorder={reorder}
-                                isNew={arrived.has(reorder.requestId)}
+                                isNew={"isPending" in reorder}
                             />
                         ))}
                     </AnimatePresence>
@@ -52,12 +81,7 @@ export function RecentReorders({ reloadKey }: RecentReordersProps) {
     );
 }
 
-interface ReorderRowProps {
-    reorder: Reorder;
-    isNew: boolean;
-}
-
-function ReorderRow({ reorder, isNew }: ReorderRowProps) {
+function ReorderRow({ reorder, isNew }: { reorder: Reorder; isNew: boolean }) {
     return (
         <motion.li
             layout
@@ -75,44 +99,22 @@ function ReorderRow({ reorder, isNew }: ReorderRowProps) {
             className="border-b border-border px-600 py-400 last:border-b-0"
         >
             <div className="flex items-baseline justify-between gap-400">
-                <p className="min-w-0 flex-1 truncate text-500 leading-500 font-semibold text-foreground">
+                <p className="min-w-0 flex-1 text-500 leading-500 font-semibold text-foreground">
                     {reorder.productName}
                 </p>
-                <p className="font-numeric text-500 leading-500 font-bold tabular-nums text-foreground">
+                <p className="shrink-0 font-numeric text-500 leading-500 font-bold tabular-nums text-foreground">
                     {reorder.units}
                     <span className="ml-100 text-400 font-medium text-muted-foreground">units</span>
                 </p>
             </div>
             <p className="mt-100 text-400 leading-400 text-muted-foreground">
-                {reorder.storeName} · {reorder.requestedBy} · {formatWhen(reorder.requestedAt)}
+                {reorder.storeName} · {reorder.requestedBy}
+            </p>
+            <p className="text-400 leading-400 text-muted-foreground">
+                {formatWhen(reorder.requestedAt)}
             </p>
         </motion.li>
     );
-}
-
-/** Tracks which request ids appeared after the first load, so only they flash. */
-function useArrivals(rows: Reorder[]): Set<string> {
-    const seen = useRef<Set<string> | null>(null);
-    const [arrived, setArrived] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-        if (rows.length === 0) return;
-
-        const ids = rows.map((row) => row.requestId);
-
-        if (seen.current === null) {
-            seen.current = new Set(ids);
-            return;
-        }
-
-        const fresh = ids.filter((id) => !seen.current!.has(id));
-        if (fresh.length === 0) return;
-
-        fresh.forEach((id) => seen.current!.add(id));
-        setArrived(new Set(fresh));
-    }, [rows]);
-
-    return arrived;
 }
 
 function formatWhen(at: Date): string {

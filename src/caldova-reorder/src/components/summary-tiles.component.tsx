@@ -1,34 +1,56 @@
-import { headlineTiles } from "@/queries/regional-dashboard";
-import { useModelQuery } from "@/hooks/use-model-query";
-import { useReloadOn } from "@/hooks/use-reload-on";
+import type { ReactNode } from "react";
+
+import { cn } from "@/lib/utils";
+import { Sparkline, type SeriesPoint } from "@/components/charts";
+import type { HeadlineTiles } from "@/queries/regional-dashboard";
 
 interface SummaryTilesProps {
-    /** Bumped after a reorder lands, so the tiles re-read the model. */
-    reloadKey: number;
+    tiles: HeadlineTiles | undefined;
+    isLoading: boolean;
+    error: string | null;
+    /** Demand over the trailing fortnight, for the supporting sparkline. */
+    demand: SeriesPoint[];
+    /** Reorders sent today that the model has not mirrored yet. */
+    pendingToday: number;
 }
 
-export function SummaryTiles({ reloadKey }: SummaryTilesProps) {
-    const { rows, isLoading, error, refresh } = useModelQuery(headlineTiles());
-    const tiles = rows[0];
-
-    useReloadOn(reloadKey, refresh);
-
+export function SummaryTiles({ tiles, isLoading, error, demand, pendingToday }: SummaryTilesProps) {
     if (error) {
         return (
             <div
                 role="alert"
-                className="rounded-xl border border-destructive bg-card px-600 py-500 text-400 leading-400 text-destructive"
+                className="rounded-xl border border-destructive bg-destructive-surface px-600 py-500 text-400 leading-400 text-destructive"
             >
                 Could not read the headline numbers from the semantic model. {error}
             </div>
         );
     }
 
+    const reordersToday = tiles === undefined ? undefined : tiles.reordersSentToday + pendingToday;
+
     return (
         <div className="grid grid-cols-3 gap-500">
-            <Tile label="Stores in region" value={tiles?.storesInRegion} isLoading={isLoading} />
-            <Tile label="Products running low" value={tiles?.productsRunningLow} isLoading={isLoading} />
-            <Tile label="Reorders sent today" value={tiles?.reordersSentToday} isLoading={isLoading} />
+            <Tile
+                label="Stores in region"
+                value={tiles?.storesInRegion}
+                isLoading={isLoading}
+                caption="Covered by you"
+            />
+            <Tile
+                label="Products running low"
+                value={tiles?.productsRunningLow}
+                isLoading={isLoading}
+                caption="Under a week of stock"
+                tone="critical"
+                chart={<Sparkline series={demand} label="Regional demand over the last fortnight" />}
+            />
+            <Tile
+                label="Reorders sent today"
+                value={reordersToday}
+                isLoading={isLoading}
+                caption={pendingToday > 0 ? "Just sent by you" : "Since midnight, UTC"}
+                highlight={pendingToday > 0}
+            />
         </div>
     );
 }
@@ -37,19 +59,43 @@ interface TileProps {
     label: string;
     value: number | undefined;
     isLoading: boolean;
+    caption: string;
+    tone?: "default" | "critical";
+    chart?: ReactNode;
+    highlight?: boolean;
 }
 
-function Tile({ label, value, isLoading }: TileProps) {
+function Tile({ label, value, isLoading, caption, tone = "default", chart, highlight }: TileProps) {
     return (
-        <div className="rounded-xl border border-border bg-card px-600 py-500">
-            <div className="font-numeric text-hero-900 leading-hero-900 font-bold tabular-nums text-foreground">
-                {isLoading || value === undefined ? (
-                    <span className="inline-block h-[52px] w-[5ch] animate-pulse rounded-md bg-muted align-middle" />
-                ) : (
-                    value.toLocaleString()
-                )}
+        <div
+            className={cn(
+                "overflow-hidden rounded-xl border bg-card px-600 py-400 shadow-card transition-colors duration-500",
+                highlight ? "border-success" : "border-border",
+            )}
+        >
+            <p className="text-300 leading-300 font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                {label}
+            </p>
+
+            <div className="mt-200 flex items-end justify-between gap-500">
+                <div className="min-w-0">
+                    <div
+                        className={cn(
+                            "font-numeric text-hero-800 leading-hero-800 font-bold tabular-nums",
+                            tone === "critical" ? "text-critical" : "text-foreground",
+                        )}
+                    >
+                        {isLoading || value === undefined ? (
+                            <span className="inline-block h-[40px] w-[4ch] animate-pulse rounded-md bg-muted align-middle" />
+                        ) : (
+                            value.toLocaleString()
+                        )}
+                    </div>
+                    <p className="mt-100 text-400 leading-400 text-muted-foreground">{caption}</p>
+                </div>
+
+                {chart && <div className="w-[46%] min-w-0 pb-200">{chart}</div>}
             </div>
-            <div className="mt-100 text-500 leading-500 font-medium text-muted-foreground">{label}</div>
         </div>
     );
 }
