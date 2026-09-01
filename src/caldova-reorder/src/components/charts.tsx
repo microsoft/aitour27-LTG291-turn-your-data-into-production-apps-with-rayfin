@@ -28,6 +28,23 @@ export interface TrendChartProps extends ChartProps {
     valueTitle?: string;
 }
 
+/** One store's stock history, for the small-multiples grid. */
+export interface FacetSeries {
+    storeId: string;
+    storeName: string;
+    /** Drawn in the urgency colour when the store is below the threshold. */
+    isCritical: boolean;
+    /** The store the manager opened this from, drawn heavier. */
+    isFocused: boolean;
+    points: SeriesPoint[];
+}
+
+export interface SmallMultiplesProps {
+    series: FacetSeries[];
+    label: string;
+    columns?: number;
+}
+
 function Placeholder({ height, children }: { height: number; children?: ReactNode }) {
     return (
         <div style={{ height }} className="flex items-end" aria-hidden>
@@ -54,6 +71,21 @@ export function TrendChart({ series, label, height = 168, valueTitle }: TrendCha
                 height={height}
                 valueTitle={valueTitle}
             />
+        </Suspense>
+    );
+}
+
+/**
+ * Fifteen stores at once.
+ *
+ * Drawn as one faceted spec rather than fifteen chart instances — the same
+ * picture, a fraction of the work — and as small multiples rather than fifteen
+ * overlapping lines, which is unreadable at the back of a room.
+ */
+export function SmallMultiples({ series, label, columns = 5 }: SmallMultiplesProps) {
+    return (
+        <Suspense fallback={<Placeholder height={318} />}>
+            <VegaCharts kind="facet" facets={series} label={label} height={68} columns={columns} />
         </Suspense>
     );
 }

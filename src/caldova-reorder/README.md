@@ -49,11 +49,33 @@ The recorded request lands in the app's own Fabric SQL database. Fabric mirrors
 that into OneLake as Delta, and the semantic model reads it with Direct Lake — so
 a reorder shows up in the app, the regional dashboard and analytics as one number.
 
+## Deciding how many to order
+
+Clicking a row opens a detail view with the three things that turn a suggested
+quantity into a decision: what the product actually sells here and across the
+region (last 7 or 28 days), how much cover is left, and how stock has moved in
+**every** shop over the past week — fifteen small multiples, worst cover first,
+this shop in bold.
+
+`Inventory` is a snapshot with no history, so the stock curves are *reconstructed*:
+today's count plus everything sold since. That assumption — no deliveries in the
+window — is stated on screen and in each measure's description. The measures
+themselves live in the semantic model (`Estimated Stock`,
+`Estimated Days of Stock`, `Estimated Products Running Low`, `Avg Daily Sales`),
+not in this app, so a report or a notebook asking the same question gets the same
+answer. Over the model's own 28-day window `Avg Daily Sales` reproduces
+`Avg Daily Demand` exactly.
+
+The "products running low" tile plots that same reconstruction, so the chart and
+the number above it are finally the same quantity — the last point of the trend
+*is* the tile's number.
+
 | Path | File |
 | --- | --- |
 | Data model | [`rayfin/data/RestockRequest.ts`](rayfin/data/RestockRequest.ts) |
 | Where "running low" is read from | [`src/queries/regional-dashboard/low-stock-queue.dax`](src/queries/regional-dashboard/low-stock-queue.dax) |
 | The reorder function | [`rayfin/functions/src/function_app.ts`](rayfin/functions/src/function_app.ts) |
+| Product detail | [`src/components/product-detail.component.tsx`](src/components/product-detail.component.tsx) |
 
 ## Why the screen moves before the model does
 

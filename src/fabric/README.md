@@ -35,8 +35,18 @@ Every measure lives in the model, not in application code. Change one here and e
 | `Products Running Low` | How many product-store combinations are running low. |
 | `Stores Under Pressure` | How many stores have at least one product running low. |
 | `Suggested Reorder Units` | The quantity to pre-fill on a reorder, to restore `Target Cover Days` plus safety stock. |
+| `Avg Daily Sales` | Units per day over whatever window the caller filters to. Over 28 days it reproduces `Avg Daily Demand` exactly. |
+| `Estimated Stock` | Stock as it stood on a past day, worked back from today's count by adding sales since. |
+| `Estimated Days of Stock` | The same, expressed as days of cover. |
+| `Estimated Products Running Low` | How many product-store pairs were running low on a past day — the trend behind the app's headline tile. |
 | `Reorders Sent Today` | Requests made today, in UTC. Reads zero before the first reorder of the day. |
 | `Open Restock Requests` | Requests sent to purchasing but not yet fulfilled. |
+
+The three `Estimated …` measures exist because `inventory` is a **snapshot**: it carries no
+history, so a stock trend has to be reconstructed rather than read. They add sales back on to
+today's count, which assumes no deliveries arrived during the window — fine for judging a week's
+movement on a product that is running low, and not a stock ledger. Each measure says so in its
+own description, and the app repeats it wherever the numbers are shown.
 
 Demand is anchored on `Latest Sales Date` rather than `TODAY()` on purpose. The generated sales window is fixed, so by demo day it is already in the past; anchoring keeps `Days of Stock` meaningful whenever the model is queried. `Reorders Sent Today` is the deliberate exception — it uses the real current date, so the tile reads `0` at the start of the demo and moves the moment a live reorder lands.
 

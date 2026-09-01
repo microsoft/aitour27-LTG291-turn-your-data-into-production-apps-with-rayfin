@@ -1,10 +1,10 @@
 import { useState } from "react";
 
-import { getRayfinClient } from "@/lib/rayfin-client";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/auth.context";
 import { usePendingReorders } from "@/hooks/pending-reorders.context";
+import { useSendReorder } from "@/hooks/use-send-reorder";
 import { Sparkline } from "@/components/charts";
+import { ProductDetail } from "@/components/product-detail.component";
 import {
     lowStockKey,
     type DemandByProduct,
@@ -31,6 +31,8 @@ export function LowStockQueue({
     unitsOnOrder,
     onReorderSent,
 }: LowStockQueueProps) {
+    const [opened, setOpened] = useState<LowStockItem | null>(null);
+
     return (
         <section className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
             <header className="flex items-baseline justify-between gap-400 border-b border-border-strong px-500 py-300">
@@ -70,11 +72,48 @@ export function LowStockQueue({
                             demand={demandByProduct.get(lowStockKey(item)) ?? []}
                             unitsOnOrder={unitsOnOrder.get(lowStockKey(item))}
                             onSent={onReorderSent}
+                            onOpenDetail={() => setOpened(item)}
                         />
                     ))}
                 </ul>
             )}
+
+            {opened && (
+                <ProductDetailFor
+                    item={opened}
+                    unitsOnOrder={unitsOnOrder.get(lowStockKey(opened))}
+                    onClose={() => setOpened(null)}
+                    onSent={onReorderSent}
+                />
+            )}
         </section>
+    );
+}
+
+/**
+ * Bridges the detail view to the shared send path, so a reorder placed after
+ * studying the numbers behaves exactly like the one-click reorder on the row.
+ */
+function ProductDetailFor({
+    item,
+    unitsOnOrder,
+    onClose,
+    onSent,
+}: {
+    item: LowStockItem;
+    unitsOnOrder: number | undefined;
+    onClose: () => void;
+    onSent: () => void;
+}) {
+    const send = useSendReorder(item, onSent);
+
+    return (
+        <ProductDetail
+            item={item}
+            unitsOnOrder={unitsOnOrder}
+            onClose={onClose}
+            onReorder={send}
+        />
     );
 }
 
@@ -87,15 +126,23 @@ interface LowStockRowProps {
     /** Units the model already counts as on order for this product. */
     unitsOnOrder: number | undefined;
     onSent: () => void;
+    onOpenDetail: () => void;
 }
 
-function LowStockRow({ item, rank, demand, unitsOnOrder, onSent }: LowStockRowProps) {
+function LowStockRow({
+    item,
+    rank,
+    demand,
+    unitsOnOrder,
+    onSent,
+    onOpenDetail,
+}: LowStockRowProps) {
     const [units, setUnits] = useState(item.suggestedReorderUnits);
     const [state, setState] = useState<RowState>("idle");
     const [failure, setFailure] = useState<string | null>(null);
 
-    const { session } = useAuth();
-    const { add, pendingUnits } = usePendingReorders();
+    const { pendingUnits } = usePendingReorders();
+    const send = useSendReorder(item, onSent);
 
     // The model is the durable answer — it survives a refresh, and it counts a
     // colleague's open request too. Pending only covers the half-minute before
@@ -108,27 +155,8 @@ function LowStockRow({ item, rank, demand, unitsOnOrder, onSent }: LowStockRowPr
         setFailure(null);
 
         try {
-            const result = await getRayfinClient().functions.sendReorder.invoke({
-                storeId: item.storeId,
-                sku: item.sku,
-                units,
-            });
-
-            // Paint it now. The model mirrors the write in about half a minute;
-            // leaving the screen still until then would lose the moment.
-            add({
-                requestId: result.requestId,
-                storeId: item.storeId,
-                sku: item.sku,
-                storeName: item.storeName,
-                productName: item.productName,
-                units,
-                requestedBy: session?.user?.email ?? "you",
-                requestedAt: new Date(),
-            });
-
+            await send(units);
             setState("idle");
-            onSent();
         } catch (err) {
             setState("failed");
             const message = err instanceof Error ? err.message : String(err);
@@ -141,8 +169,21 @@ function LowStockRow({ item, rank, demand, unitsOnOrder, onSent }: LowStockRowPr
 
     return (
         <li
+            // The whole row opens the detail view, because that is what a manager
+            // reaches for when the suggested quantity is not obviously right. The
+            // reorder controls stop the event, so the one-click path is untouched.
+            onClick={onOpenDetail}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpenDetail();
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label={`Show detail for ${item.productName} at ${item.storeName}`}
             className={cn(
-                "flex items-center gap-400 border-b border-border px-500 py-200 transition-colors last:border-b-0",
+                "flex cursor-pointer items-center gap-400 border-b border-border px-500 py-200 transition-colors last:border-b-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                 onOrder !== undefined ? "bg-success-surface/50" : "hover:bg-hover",
             )}
         >
@@ -181,7 +222,11 @@ function LowStockRow({ item, rank, demand, unitsOnOrder, onSent }: LowStockRowPr
                 <p className="text-400 leading-400 text-muted-foreground">on hand</p>
             </div>
 
-            <div className="flex w-[21ch] shrink-0 flex-col items-end gap-100">
+            <div
+                className="flex w-[21ch] shrink-0 flex-col items-end gap-100"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+            >
                 {onOrder !== undefined ? (
                     <span className="inline-flex items-center gap-200 whitespace-nowrap rounded-full bg-success px-400 py-200 text-400 leading-400 font-bold text-success-foreground">
                         On order · {onOrder} units

@@ -8,13 +8,19 @@ interface SummaryTilesProps {
     tiles: HeadlineTiles | undefined;
     isLoading: boolean;
     error: string | null;
-    /** Demand over the trailing fortnight, for the supporting sparkline. */
-    demand: SeriesPoint[];
+    /** Products running low on each of the last seven days. */
+    lowStockTrend: SeriesPoint[];
     /** Reorders sent today that the model has not mirrored yet. */
     pendingToday: number;
 }
 
-export function SummaryTiles({ tiles, isLoading, error, demand, pendingToday }: SummaryTilesProps) {
+export function SummaryTiles({
+    tiles,
+    isLoading,
+    error,
+    lowStockTrend,
+    pendingToday,
+}: SummaryTilesProps) {
     if (error) {
         return (
             <div
@@ -42,7 +48,12 @@ export function SummaryTiles({ tiles, isLoading, error, demand, pendingToday }: 
                 isLoading={isLoading}
                 caption="Under a week of stock"
                 tone="critical"
-                chart={<Sparkline series={demand} label="Regional demand over the last fortnight" />}
+                chart={
+                    <Sparkline
+                        series={lowStockTrend}
+                        label="Products running low on each of the last seven days"
+                    />
+                }
             />
             <Tile
                 label="Reorders sent today"
@@ -94,7 +105,7 @@ function Tile({ label, value, isLoading, caption, tone = "default", chart, highl
                     <p className="mt-100 text-400 leading-400 text-muted-foreground">{caption}</p>
                 </div>
 
-                {chart && <div className="w-[46%] min-w-0 pb-200">{chart}</div>}
+                {chart && <div className="w-[52%] min-w-0 pb-200">{chart}</div>}
             </div>
         </div>
     );

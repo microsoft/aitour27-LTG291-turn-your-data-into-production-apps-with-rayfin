@@ -142,6 +142,59 @@ table Inventory
 			    IF(ISBLANK(Demand), BLANK(), MAX(ROUND(Shortfall, 0), 0))
 		formatString: #,0
 
+	/// Units sold per day over whatever date window the caller has filtered to. One measure
+	/// serves a week view and a month view; over the model's own 28-day window it agrees with
+	/// [Avg Daily Demand] exactly.
+	measure 'Avg Daily Sales' =
+			DIVIDE([Units Sold], COUNTROWS(VALUES(Sales[date])))
+		formatString: 0.0
+
+	/// Stock as it stood at the end of the date in filter context, worked backwards from today's
+	/// count by adding back everything sold since.
+	///
+	/// An ESTIMATE, not a record. Inventory is a snapshot with no history, so this assumes no
+	/// deliveries arrived during the window. Over a week, for products that are running low,
+	/// that holds well enough to judge a trend; it is not a stock ledger.
+	measure 'Estimated Stock' =
+			VAR OnDay = MAX(Sales[date])
+			RETURN
+			    [On Hand Units]
+			        + CALCULATE(SUM(Sales[units_sold]), ALL(Sales[date]), Sales[date] > OnDay)
+		formatString: #,0
+
+	/// Days of cover as they stood on the date in filter context, using [Estimated Stock].
+	/// Carries the same estimate caveat.
+	measure 'Estimated Days of Stock' =
+			DIVIDE([Estimated Stock], [Avg Daily Demand])
+		formatString: 0.0
+
+	/// How many product-store combinations were running low on the date in filter context.
+	///
+	/// The same rule as [Products Running Low] — below [Low Stock Threshold Days] of cover —
+	/// applied to [Estimated Stock], so a trend can be drawn from a snapshot. Demand is held at
+	/// the model's current rate rather than recomputed per day, which keeps the comparison about
+	/// stock moving rather than the demand window sliding.
+	measure 'Estimated Products Running Low' =
+			VAR OnDay = MAX(Sales[date])
+			VAR Threshold = [Low Stock Threshold Days]
+			VAR Pairs =
+			    ADDCOLUMNS(
+			        SUMMARIZE(Inventory, Stores[store_id], Products[sku]),
+			        "@OnHand", [On Hand Units],
+			        "@Demand", [Avg Daily Demand],
+			        "@SoldSince",
+			            CALCULATE(SUM(Sales[units_sold]), ALL(Sales[date]), Sales[date] > OnDay)
+			    )
+			RETURN
+			    COUNTROWS(
+			        FILTER(
+			            Pairs,
+			            [@Demand] > 0
+			                && DIVIDE([@OnHand] + [@SoldSince], [@Demand]) < Threshold
+			        )
+			    )
+		formatString: #,0
+
 	partition Inventory = entity
 		mode: directLake
 		source
