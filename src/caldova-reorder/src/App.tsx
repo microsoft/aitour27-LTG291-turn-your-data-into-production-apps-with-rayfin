@@ -17,6 +17,7 @@ import { usePendingReorders } from "@/hooks/pending-reorders.context";
 import {
     demandTrend,
     headlineTiles,
+    lowStockTrend,
     indexOpenReorders,
     lowStockKey,
     indexProductDemand,
@@ -43,6 +44,7 @@ function App() {
     const demand = useModelQuery(demandTrend());
     const perProduct = useModelQuery(productDemand());
     const onOrder = useModelQuery(openReorders(), pollMs);
+    const lowTrend = useModelQuery(lowStockTrend());
 
     const unitsOnOrder = useMemo(() => indexOpenReorders(onOrder.rows), [onOrder.rows]);
 
@@ -77,6 +79,11 @@ function App() {
         [demand.rows],
     );
 
+    const lowStockSeries = useMemo(
+        () => lowTrend.rows.map((point) => ({ date: point.date, value: point.runningLow })),
+        [lowTrend.rows],
+    );
+
     const demandByProduct = useMemo(() => indexProductDemand(perProduct.rows), [perProduct.rows]);
 
     const pendingToday = useMemo(() => {
@@ -93,7 +100,7 @@ function App() {
                     tiles={headline}
                     isLoading={tiles.isLoading}
                     error={tiles.error}
-                    demand={demandSeries}
+                    lowStockTrend={lowStockSeries}
                     pendingToday={pendingToday}
                 />
 
