@@ -5,7 +5,7 @@ import {
 } from '@microsoft/fabric-user-data-functions';
 import { purchasing, sendToPurchasing } from './purchasing-client.js';
 import { acceptPurchaseOrder } from './purchasing-mock.js';
-import { describe, signedInManager } from './identity.js';
+import { signedInManager } from './identity.js';
 import type { AppSchema } from './data-schema.js';
 
 const udf = new UserDataFunctions();
@@ -31,21 +31,16 @@ udf.func(
         });
 
         // 2. Record the request in Fabric, against the manager who sent it.
-        const request = await ctx
-            .getDataClient()
-            .RestockRequest.create({
-                store_id: storeId,
-                sku,
-                qty: units,
-                requested_by: manager.upn,
-                requested_by_id: manager.id,
-                requested_at: new Date(),
-                status: 'submitted',
-                note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
-            })
-            .catch((cause: unknown) => {
-                throw new Error(`Could not record the reorder — ${describe(cause, manager)}`);
-            });
+        const request = await ctx.getDataClient().RestockRequest.create({
+            store_id: storeId,
+            sku,
+            qty: units,
+            requested_by: manager.upn,
+            requested_by_id: manager.id,
+            requested_at: new Date(),
+            status: 'submitted',
+            note: `Raised from the regional dashboard against ${order.purchaseOrderId}.`,
+        });
 
         return {
             requestId: request.id,

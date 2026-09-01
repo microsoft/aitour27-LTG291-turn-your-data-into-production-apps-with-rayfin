@@ -28,8 +28,12 @@ export interface PendingReordersValue {
      * a reorder is never counted twice.
      */
     reconcile: (requestIdsFromModel: readonly string[]) => void;
-    /** Whether this product in this store already has a reorder in flight. */
-    isOnOrder: (storeId: string, sku: string) => boolean;
+    /**
+     * Units this screen has just put on order for a product, before the model
+     * has mirrored them. `undefined` when there is nothing in flight — the
+     * model is then the only answer.
+     */
+    pendingUnits: (storeId: string, sku: string) => number | undefined;
 }
 
 export const PendingReordersContext = createContext<PendingReordersValue | undefined>(undefined);

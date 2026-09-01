@@ -17,8 +17,11 @@ import { usePendingReorders } from "@/hooks/pending-reorders.context";
 import {
     demandTrend,
     headlineTiles,
+    indexOpenReorders,
+    lowStockKey,
     indexProductDemand,
     lowStockQueue,
+    openReorders,
     productDemand,
     recentReorders,
 } from "@/queries/regional-dashboard";
@@ -39,12 +42,33 @@ function App() {
     const reorders = useModelQuery(recentReorders(), pollMs);
     const demand = useModelQuery(demandTrend());
     const perProduct = useModelQuery(productDemand());
+    const onOrder = useModelQuery(openReorders(), pollMs);
 
-    // Hand the model's answer back to the pending store so anything it now
-    // reports stops being painted twice.
+    const unitsOnOrder = useMemo(() => indexOpenReorders(onOrder.rows), [onOrder.rows]);
+
+    /**
+     * A pending reorder is only handed over once the model reports it in *both*
+     * places it is painted: the recent list and the on-order badge. Releasing it
+     * as soon as the first query catches up would blink the badge off until the
+     * second one followed.
+     */
+    const confirmed = useMemo(
+        () => {
+            const reported = new Set(reorders.rows.map((reorder) => reorder.requestId));
+
+            return pending
+                .filter(
+                    (reorder) =>
+                        reported.has(reorder.requestId) && unitsOnOrder.has(lowStockKey(reorder)),
+                )
+                .map((reorder) => reorder.requestId);
+        },
+        [pending, reorders.rows, unitsOnOrder],
+    );
+
     useEffect(() => {
-        reconcile(reorders.rows.map((reorder) => reorder.requestId));
-    }, [reorders.rows, reconcile]);
+        reconcile(confirmed);
+    }, [confirmed, reconcile]);
 
     const headline = tiles.rows[0];
 
@@ -79,6 +103,7 @@ function App() {
                         isLoading={queue.isLoading}
                         error={queue.error}
                         demandByProduct={demandByProduct}
+                        unitsOnOrder={unitsOnOrder}
                         onReorderSent={queue.refresh}
                     />
 

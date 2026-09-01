@@ -9,6 +9,7 @@ import {
     lowStockKey,
     type DemandByProduct,
     type LowStockItem,
+    type UnitsOnOrder,
 } from "@/queries/regional-dashboard";
 
 interface LowStockQueueProps {
@@ -16,6 +17,8 @@ interface LowStockQueueProps {
     isLoading: boolean;
     error: string | null;
     demandByProduct: DemandByProduct;
+    /** Units already on order per product, as the model reports them. */
+    unitsOnOrder: UnitsOnOrder;
     /** Re-reads the queue once the model has caught up. */
     onReorderSent: () => void;
 }
@@ -25,6 +28,7 @@ export function LowStockQueue({
     isLoading,
     error,
     demandByProduct,
+    unitsOnOrder,
     onReorderSent,
 }: LowStockQueueProps) {
     return (
@@ -64,6 +68,7 @@ export function LowStockQueue({
                             item={item}
                             rank={index + 1}
                             demand={demandByProduct.get(lowStockKey(item)) ?? []}
+                            unitsOnOrder={unitsOnOrder.get(lowStockKey(item))}
                             onSent={onReorderSent}
                         />
                     ))}
@@ -79,17 +84,24 @@ interface LowStockRowProps {
     item: LowStockItem;
     rank: number;
     demand: { date: string; value: number }[];
+    /** Units the model already counts as on order for this product. */
+    unitsOnOrder: number | undefined;
     onSent: () => void;
 }
 
-function LowStockRow({ item, rank, demand, onSent }: LowStockRowProps) {
+function LowStockRow({ item, rank, demand, unitsOnOrder, onSent }: LowStockRowProps) {
     const [units, setUnits] = useState(item.suggestedReorderUnits);
     const [state, setState] = useState<RowState>("idle");
     const [failure, setFailure] = useState<string | null>(null);
 
     const { session } = useAuth();
-    const { add, isOnOrder } = usePendingReorders();
-    const onOrder = isOnOrder(item.storeId, item.sku);
+    const { add, pendingUnits } = usePendingReorders();
+
+    // The model is the durable answer — it survives a refresh, and it counts a
+    // colleague's open request too. Pending only covers the half-minute before
+    // the model has mirrored a reorder just sent from this screen.
+    const justSent = pendingUnits(item.storeId, item.sku);
+    const onOrder = justSent ?? unitsOnOrder;
 
     async function sendReorder() {
         setState("sending");
@@ -131,14 +143,14 @@ function LowStockRow({ item, rank, demand, onSent }: LowStockRowProps) {
         <li
             className={cn(
                 "flex items-center gap-400 border-b border-border px-500 py-200 transition-colors last:border-b-0",
-                onOrder ? "bg-success-surface/50" : "hover:bg-hover",
+                onOrder !== undefined ? "bg-success-surface/50" : "hover:bg-hover",
             )}
         >
             <span
                 aria-hidden
                 className={cn(
                     "flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md font-numeric text-400 font-bold tabular-nums",
-                    onOrder ? "bg-muted text-muted-foreground" : "bg-primary-surface text-primary",
+                    onOrder !== undefined ? "bg-muted text-muted-foreground" : "bg-primary-surface text-primary",
                 )}
             >
                 {rank}
@@ -160,7 +172,7 @@ function LowStockRow({ item, rank, demand, onSent }: LowStockRowProps) {
                 />
             </div>
 
-            <DaysOfStock item={item} muted={onOrder} />
+            <DaysOfStock item={item} muted={onOrder !== undefined} />
 
             <div className="w-[8ch] shrink-0 text-right">
                 <p className="font-numeric text-500 leading-500 font-semibold tabular-nums text-foreground">
@@ -170,9 +182,9 @@ function LowStockRow({ item, rank, demand, onSent }: LowStockRowProps) {
             </div>
 
             <div className="flex w-[21ch] shrink-0 flex-col items-end gap-100">
-                {onOrder ? (
-                    <span className="inline-flex items-center gap-200 rounded-full bg-success px-400 py-200 text-400 leading-400 font-bold text-success-foreground">
-                        On order
+                {onOrder !== undefined ? (
+                    <span className="inline-flex items-center gap-200 whitespace-nowrap rounded-full bg-success px-400 py-200 text-400 leading-400 font-bold text-success-foreground">
+                        On order · {onOrder} units
                     </span>
                 ) : (
                     <div className="flex items-center gap-300">

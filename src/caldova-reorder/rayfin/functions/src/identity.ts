@@ -97,18 +97,3 @@ function decodeClaims(token: string): Claims | null {
         return null;
     }
 }
-
-/**
- * Describe a failed write without leaking anything sensitive.
- *
- * "Internal server error" from the data layer is unactionable on its own, so the
- * shape of what was sent — lengths, never values — travels with it.
- */
-export function describe(cause: unknown, manager: SignedInManager): string {
-    const message = cause instanceof Error ? cause.message : String(cause);
-
-    return (
-        `${message} (requester id length ${manager.id.length}, ` +
-        `upn length ${manager.upn.length})`
-    );
-}

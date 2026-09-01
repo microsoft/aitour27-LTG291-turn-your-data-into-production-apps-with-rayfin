@@ -35,11 +35,14 @@ export class RestockRequest {
 
   /**
    * The requester's directory object id, so the request traces to an identity.
-   * Sized generously: identity providers issue ids of very different shapes, and
-   * a value that overflows the column fails the write with a database error
-   * rather than anything a reader could act on.
+   *
+   * Sized generously on purpose. The Fabric-brokered session token's subject
+   * claim is not a GUID — the observed value is 198 characters — so the obvious
+   * 64 is far too small, and even 200 leaves no margin for an identity of a
+   * slightly different shape. An overflow here fails the write with a database
+   * error rather than anything a reader could act on.
    */
-  @text({ max: 200 }) requested_by_id!: string;
+  @text({ max: 400 }) requested_by_id!: string;
 
   /** When the request was made, in UTC. */
   @date() requested_at!: Date;

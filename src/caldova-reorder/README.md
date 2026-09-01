@@ -70,6 +70,30 @@ invented — the app is anticipating an answer it already knows the model will g
 A reorder does not restock the shelf, so `Days of Stock` deliberately does **not**
 change on send. The row's honest state change is "On order".
 
+That badge is **not** session state. It comes from the model's own
+`Open Restock Requests` measure — sent to purchasing, not yet fulfilled — so it
+survives a refresh, and a colleague's open request stops you double-ordering
+too. Pending only fills the half-minute before the model has mirrored a reorder
+just sent from this screen, and a pending entry is released only once the model
+reports it in *both* places it is painted, so the badge never blinks off.
+
+## Where row-level security lives
+
+`RestockRequest` carries no database policy, on either action. Two reasons, both
+recorded on the entity:
+
+- Data API Builder cannot apply one to `create` — an INSERT has no WHERE clause
+  to attach it to.
+- A `read` policy would have to match on `claims.sub`, and the Fabric-brokered
+  session token does not carry that claim. Data API Builder applies read rules to
+  the row a mutation returns, so an unevaluable policy breaks the **write** too.
+
+Neither is a gap. Writes only ever happen inside `sendReorder`, which takes the
+requester from the signed-in identity rather than from the caller, so a reorder
+cannot be attributed to somebody else. And what a manager *sees* is scoped by the
+semantic model's own `RegionalManager` row-level security — which is the point
+the session is making: the rule lives in the model, once.
+
 ## Running it
 
 ```bash
