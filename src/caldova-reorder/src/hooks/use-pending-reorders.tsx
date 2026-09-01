@@ -36,8 +36,15 @@ export function PendingReordersProvider({ children }: { children: ReactNode }) {
             pending,
             add,
             reconcile,
-            isOnOrder: (storeId, sku) =>
-                pending.some((reorder) => reorder.storeId === storeId && reorder.sku === sku),
+            pendingUnits: (storeId, sku) => {
+                const matches = pending.filter(
+                    (reorder) => reorder.storeId === storeId && reorder.sku === sku,
+                );
+
+                if (matches.length === 0) return undefined;
+
+                return matches.reduce((total, reorder) => total + reorder.units, 0);
+            },
         }),
         [pending, add, reconcile],
     );
