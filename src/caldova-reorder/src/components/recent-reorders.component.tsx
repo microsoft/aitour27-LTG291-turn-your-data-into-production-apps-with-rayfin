@@ -13,7 +13,7 @@ interface RecentReordersProps {
 const MAX_ROWS = 6;
 
 export function RecentReorders({ reorders, isLoading, error }: RecentReordersProps) {
-    const { pending } = usePendingReorders();
+    const { pending, cleared } = usePendingReorders();
 
     /**
      * What the model reports, plus anything sent in this session that it has not
@@ -21,7 +21,11 @@ export function RecentReorders({ reorders, isLoading, error }: RecentReordersPro
      * reorder is shown once and only once.
      */
     const rows = useMemo(() => {
-        const fromModel = new Set(reorders.map((reorder) => reorder.requestId));
+        // The model still reports reorders that have just been deleted, so they
+        // are filtered out here until it catches up with losing them.
+        const removed = new Set(cleared.map((reorder) => reorder.requestId));
+        const visible = reorders.filter((reorder) => !removed.has(reorder.requestId));
+        const fromModel = new Set(visible.map((reorder) => reorder.requestId));
 
         const optimistic: (Reorder & { isPending: true })[] = pending
             .filter((reorder) => !fromModel.has(reorder.requestId))
@@ -35,8 +39,8 @@ export function RecentReorders({ reorders, isLoading, error }: RecentReordersPro
                 isPending: true,
             }));
 
-        return [...optimistic, ...reorders].slice(0, MAX_ROWS);
-    }, [reorders, pending]);
+        return [...optimistic, ...visible].slice(0, MAX_ROWS);
+    }, [reorders, pending, cleared]);
 
     return (
         <section className="overflow-hidden rounded-xl border border-border bg-card shadow-card">

@@ -10,8 +10,11 @@ interface SummaryTilesProps {
     error: string | null;
     /** Products running low on each of the last seven days. */
     lowStockTrend: SeriesPoint[];
-    /** Reorders sent today that the model has not mirrored yet. */
-    pendingToday: number;
+    /**
+     * How far today's count is from the model's: reorders sent here it has not
+     * mirrored, less ones deleted here it still counts. Can be negative.
+     */
+    todayAdjustment: number;
 }
 
 export function SummaryTiles({
@@ -19,7 +22,7 @@ export function SummaryTiles({
     isLoading,
     error,
     lowStockTrend,
-    pendingToday,
+    todayAdjustment,
 }: SummaryTilesProps) {
     if (error) {
         return (
@@ -32,7 +35,10 @@ export function SummaryTiles({
         );
     }
 
-    const reordersToday = tiles === undefined ? undefined : tiles.reordersSentToday + pendingToday;
+    const reordersToday =
+        tiles === undefined
+            ? undefined
+            : Math.max(0, tiles.reordersSentToday + todayAdjustment);
 
     return (
         <div className="grid grid-cols-3 gap-500">
@@ -59,8 +65,8 @@ export function SummaryTiles({
                 label="Reorders sent today"
                 value={reordersToday}
                 isLoading={isLoading}
-                caption={pendingToday > 0 ? "Just sent by you" : "Since midnight, UTC"}
-                highlight={pendingToday > 0}
+                caption={todayAdjustment > 0 ? "Just sent by you" : "Since midnight, UTC"}
+                highlight={todayAdjustment > 0}
             />
         </div>
     );

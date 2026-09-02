@@ -65,3 +65,48 @@ udf.func(
         acceptPurchaseOrder({ store_id, sku, units, requested_by }),
     [],
 );
+
+/**
+ * Clears the reorders the signed-in user sent, so the demo can be run again.
+ *
+ * Scoped to the caller by `requested_by_id`, which leaves the seeded history
+ * alone: those rows were raised by other people. The scoping lives here rather
+ * than in a data policy because Data API Builder would have to match on
+ * `claims.sub`, a claim the Fabric-brokered session token does not carry.
+ */
+udf.func(
+    'resetDemoReorders',
+    async (ctx: RayfinContext<AppSchema>) => {
+        const manager = signedInManager(ctx);
+        const data = ctx.getDataClient();
+
+        const mine = await data.RestockRequest.select([
+            'id',
+            'store_id',
+            'sku',
+            'qty',
+            'requested_at',
+        ])
+            .where({ requested_by_id: { eq: manager.id } })
+            .execute();
+
+        for (const reorder of mine) {
+            await data.RestockRequest.delete({ id: reorder.id });
+        }
+
+        // What was removed, not just how much. The dashboard reads reorders from
+        // the semantic model, which trails the database by about half a minute,
+        // so it has to know which rows to stop showing until the model agrees.
+        return {
+            deleted: mine.length,
+            cleared: mine.map((reorder) => ({
+                requestId: reorder.id,
+                storeId: reorder.store_id,
+                sku: reorder.sku,
+                units: reorder.qty,
+                requestedAt: new Date(reorder.requested_at).toISOString(),
+            })),
+        };
+    },
+    [udf.connection({ audienceType: AudienceType.Fabric })],
+);

@@ -116,6 +116,22 @@ cannot be attributed to somebody else. And what a manager *sees* is scoped by th
 semantic model's own `RegionalManager` row-level security — which is the point
 the session is making: the rule lives in the model, once.
 
+## Resetting between runs
+
+Double-click the Caldova wordmark. It asks first, then removes **the reorders you
+sent** — the seeded history raised by other managers stays, so the recent list is
+never left bare.
+
+There is no button on screen for this on purpose: an audience never finds it, and
+a presenter does not have to look at a reset control all the way through a talk.
+The confirmation is equally deliberate — an accidental double-click wiping the
+table mid-demo would be worse than having no reset at all.
+
+Scoping is by `requested_by_id`, taken from the signed-in identity inside
+[`resetDemoReorders`](rayfin/functions/src/function_app.ts). It cannot be a Data
+API Builder policy, for the same reason `read` has none: the policy would match on
+`claims.sub`, a claim the Fabric-brokered session token does not carry.
+
 ## Running it
 
 ```bash

@@ -27,5 +27,18 @@ export type AppFunctionsSchema = {
     input: { store_id: string; sku: string; units: number; requested_by: string };
     output: { purchaseOrderId: string; expectedDelivery: string };
   };
+  resetDemoReorders: {
+    input: Record<string, never>;
+    output: {
+      deleted: number;
+      cleared: {
+        requestId: string;
+        storeId: string;
+        sku: string;
+        units: number;
+        requestedAt: string;
+      }[];
+    };
+  };
 };
 
