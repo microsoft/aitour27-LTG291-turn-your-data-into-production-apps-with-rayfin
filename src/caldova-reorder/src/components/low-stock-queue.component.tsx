@@ -106,18 +106,44 @@ function ProductDetailFor({
     onSent: () => void;
 }) {
     const send = useSendReorder(item, onSent);
+    const { pendingUnits, clearedUnits } = usePendingReorders();
+
+    // Same reasoning as the row it was opened from, or a reset would leave the
+    // detail view insisting the product is still on order.
+    const onOrder = unitsOnOrderFor(
+        unitsOnOrder,
+        pendingUnits(item.storeId, item.sku),
+        clearedUnits(item.storeId, item.sku),
+    );
 
     return (
-        <ProductDetail
-            item={item}
-            unitsOnOrder={unitsOnOrder}
-            onClose={onClose}
-            onReorder={send}
-        />
+        <ProductDetail item={item} unitsOnOrder={onOrder} onClose={onClose} onReorder={send} />
     );
 }
 
 type RowState = "idle" | "sending" | "failed";
+
+/**
+ * Units on order for a product, as this screen currently believes them.
+ *
+ * The model is the durable answer — it survives a refresh and counts another
+ * manager's open request too. The two local lists cover the half-minute in which
+ * it has not caught up: one with a reorder just sent, the other with one just
+ * deleted.
+ *
+ * Cleared units are subtracted rather than clearing the badge outright, so a
+ * colleague's open request for the same product keeps it.
+ */
+function unitsOnOrderFor(
+    fromModel: number | undefined,
+    justSent: number | undefined,
+    justCleared: number,
+): number | undefined {
+    if (justSent !== undefined) return justSent;
+
+    const remaining = fromModel === undefined ? undefined : fromModel - justCleared;
+    return remaining !== undefined && remaining > 0 ? remaining : undefined;
+}
 
 interface LowStockRowProps {
     item: LowStockItem;
@@ -141,14 +167,14 @@ function LowStockRow({
     const [state, setState] = useState<RowState>("idle");
     const [failure, setFailure] = useState<string | null>(null);
 
-    const { pendingUnits } = usePendingReorders();
+    const { pendingUnits, clearedUnits } = usePendingReorders();
     const send = useSendReorder(item, onSent);
 
-    // The model is the durable answer — it survives a refresh, and it counts a
-    // colleague's open request too. Pending only covers the half-minute before
-    // the model has mirrored a reorder just sent from this screen.
-    const justSent = pendingUnits(item.storeId, item.sku);
-    const onOrder = justSent ?? unitsOnOrder;
+    const onOrder = unitsOnOrderFor(
+        unitsOnOrder,
+        pendingUnits(item.storeId, item.sku),
+        clearedUnits(item.storeId, item.sku),
+    );
 
     async function sendReorder() {
         setState("sending");

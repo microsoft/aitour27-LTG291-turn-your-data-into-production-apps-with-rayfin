@@ -8,22 +8,28 @@ import { entity, role, uuid, text, int, date, set } from '@microsoft/rayfin-core
  * `requested_by` and `requested_at` are what make a request traceable.
  */
 @entity()
-// No database policy on either action, deliberately.
+// No database policy on any action, deliberately.
 //
 // `create` cannot carry one: an INSERT has no WHERE clause for Data API Builder
 // to attach a policy to, so declaring one fails every write.
 //
-// `read` could, but the policy would have to match on `claims.sub`, and the
-// Fabric-brokered session token does not carry that claim — Data API Builder
-// applies read rules to the row a mutation returns, so an unevaluable policy
-// breaks the write too.
+// `read` and `delete` could, but the policy would have to match on `claims.sub`,
+// and the Fabric-brokered session token does not carry that claim — Data API
+// Builder applies read rules to the row a mutation returns, so an unevaluable
+// policy breaks the write too.
 //
-// Neither is a gap. Reorders are only ever written by the `sendReorder`
-// function, which takes the requester from the signed-in identity rather than
-// from the caller, so a reorder cannot be attributed to somebody else. And what
-// a manager *sees* is scoped by the semantic model's own `RegionalManager`
-// row-level security, which is where that rule belongs.
-@role('authenticated', ['create', 'read'])
+// `delete` is therefore wider at the data layer than it looks: any signed-in
+// user could delete a row through the data API. It exists for the demo reset,
+// which deletes only the caller's own reorders — that ownership check lives in
+// `resetDemoReorders`, not here, because here it cannot.
+//
+// Neither is a gap for the paths this app actually uses. Reorders are only ever
+// written by the `sendReorder` function, which takes the requester from the
+// signed-in identity rather than from the caller, so a reorder cannot be
+// attributed to somebody else. And what a manager *sees* is scoped by the
+// semantic model's own `RegionalManager` row-level security, which is where that
+// rule belongs.
+@role('authenticated', ['create', 'read', 'delete'])
 export class RestockRequest {
   @uuid() id!: string;
   @text({ max: 32 }) store_id!: string;

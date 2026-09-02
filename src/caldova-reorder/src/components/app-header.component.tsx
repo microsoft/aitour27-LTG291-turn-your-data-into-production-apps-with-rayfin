@@ -1,10 +1,15 @@
 import logoUrl from "@/assets/caldova-logo.svg";
 import { useAuth } from "@/hooks/auth.context";
+import { useDemoReset } from "@/hooks/use-demo-reset";
+import { DemoResetPanel } from "@/components/demo-reset.component";
+import type { ClearedReorder } from "@/hooks/pending-reorders.context";
 
 interface AppHeaderProps {
     /** The model's own notion of "now", so the screen states what it is showing. */
     asOf: Date | null;
     region: string | null;
+    /** Hands back what the reset removed, so the screen can stop showing it. */
+    onReset: (cleared: ClearedReorder[]) => void;
 }
 
 /**
@@ -13,14 +18,25 @@ interface AppHeaderProps {
  * Enterprise software always answers two questions before anything else: who am
  * I signed in as, and how current is this? Both live here.
  */
-export function AppHeader({ asOf, region }: AppHeaderProps) {
+export function AppHeader({ asOf, region, onReset }: AppHeaderProps) {
     const { session } = useAuth();
     const email = session?.user?.email ?? null;
+    const reset = useDemoReset({ onReset });
 
     return (
         <header className="border-b border-border-strong bg-card">
             <div className="mx-auto flex max-w-[1680px] items-center gap-500 px-800 py-300">
-                <img src={logoUrl} alt="Caldova" className="h-[26px] w-auto" />
+                {/* Double-click opens the demo reset. Unlabelled on purpose — see
+                    `demo-reset.component.tsx`. */}
+                <div className="relative">
+                    <img
+                        src={logoUrl}
+                        alt="Caldova"
+                        onDoubleClick={reset.open}
+                        className="h-[26px] w-auto select-none"
+                    />
+                    <DemoResetPanel reset={reset} />
+                </div>
 
                 <span className="h-[28px] w-px bg-border-strong" aria-hidden />
 
