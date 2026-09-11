@@ -413,6 +413,35 @@ function Test-Tables {
 # The semantic model binds RestockRequests by name and type, so check the shape the
 # Rayfin app actually created rather than assuming it matches the model definition.
 # The table lives in the Rayfin app's SQL database, which Fabric mirrors into OneLake.
+# Reorder history belongs in the Rayfin app's own SQL database, not the lakehouse: the app writes
+# there and Fabric mirrors it into OneLake for the model to read. Seeding anywhere else would put
+# the same record in two places again.
+#
+# The generated SQL deletes the seeded ids before inserting them, so a repeat deploy cannot double
+# the history, and reorders raised during a demo are untouched because their ids are not in it.
+function Add-RestockSeed {
+    $databaseId = $script:Config['RAYFIN_SQL_DATABASE_ID']
+    if (-not $databaseId) {
+        Write-Warn 'RAYFIN_SQL_DATABASE_ID is not set; skipping the seeded reorder history.'
+        return
+    }
+
+    Write-Log 'Seeding reorder history into the Rayfin database'
+
+    $csv = Join-Path $GeneratedDir 'restock_requests.csv'
+    $sql = & node (Join-Path $DataDir 'reorder-seed.js') $csv
+    if ($LASTEXITCODE -ne 0 -or -not $sql) {
+        Stop-WithError 'Could not build the reorder seed SQL.'
+    }
+
+    $result = Invoke-Fabio sql-database query --force --workspace $script:WorkspaceId --id $databaseId --sql ($sql -join "`n")
+    if (-not $result.Success) {
+        Stop-WithError 'Seeding the reorder history failed.'
+    }
+
+    Write-Log 'Seeded reorder history is in place'
+}
+
 function Show-RestockSchema {
     $endpointId = $script:Config['RAYFIN_SQL_ENDPOINT_ID']
     if (-not $endpointId) {
@@ -756,6 +785,7 @@ function Invoke-Main {
             Send-Tables
             Test-Tables
             Show-RestockSchema
+            Add-RestockSeed
         }
 
         Publish-SemanticModel

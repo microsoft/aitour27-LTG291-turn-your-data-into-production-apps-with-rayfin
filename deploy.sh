@@ -435,6 +435,32 @@ report_restock_schema() {
   [[ -z "$missing" ]] || die "RestockRequests is missing these columns:$missing"
 }
 
+# Reorder history belongs in the Rayfin app's own SQL database, not the lakehouse: the app writes
+# there and Fabric mirrors it into OneLake for the model to read. Seeding anywhere else would put
+# the same record in two places again.
+#
+# The generated SQL deletes the seeded ids before inserting them, so a repeat deploy cannot double
+# the history, and reorders raised during a demo are untouched because their ids are not in it.
+seed_restock_requests() {
+  local sql
+
+  if [[ -z "$RAYFIN_SQL_DATABASE_ID" ]]; then
+    warn "RAYFIN_SQL_DATABASE_ID is not set; skipping the seeded reorder history."
+    return 0
+  fi
+
+  log "Seeding reorder history into the Rayfin database"
+
+  sql="$(node "$ROOT_DIR/data/reorder-seed.js" "$GENERATED_DIR/restock_requests.csv")" \
+    || die "Could not build the reorder seed SQL."
+
+  fabio_json sql-database query --force --workspace "$WORKSPACE_ID" \
+    --id "$RAYFIN_SQL_DATABASE_ID" --sql "$sql" >/dev/null \
+    || die "Seeding the reorder history failed."
+
+  log "Seeded reorder history is in place"
+}
+
 # ---------------------------------------------------------------------------
 # Semantic model
 # ---------------------------------------------------------------------------
@@ -752,6 +778,7 @@ main() {
     upload_tables
     verify_tables
     report_restock_schema
+    seed_restock_requests
   fi
 
   deploy_semantic_model
