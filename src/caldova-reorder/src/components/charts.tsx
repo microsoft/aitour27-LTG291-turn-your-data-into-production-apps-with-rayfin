@@ -1,18 +1,14 @@
 import { lazy, Suspense, useRef, type ReactNode } from "react";
 
 import { useElementWidth } from "@/hooks/use-element-width";
+import { SparklineSvg, TrendSvg } from "./line-chart";
 
 /**
  * Chart entry points.
  *
- * Vega and Vega-Lite are large, and the first thing a manager needs to see is
- * the low-stock list — not a chart. So the chart implementation is split out and
- * loaded after first paint. Until it arrives, each chart reserves its own space
- * so nothing on the screen jumps.
- *
- * Width is measured here rather than left to Vega. See `useElementWidth` for
- * why: a container-sized chart collapses permanently the first time it is
- * measured at zero width, which happens on scroll.
+ * The small line charts are plain SVG — see `line-chart.tsx` for why. Vega is
+ * kept for the fifteen-panel faceted grid, which would be real work by hand, and
+ * is loaded only when the detail view opens rather than on first paint.
  */
 
 const VegaCharts = lazy(() => import("./vega-charts"));
@@ -51,6 +47,8 @@ export interface SmallMultiplesProps {
     columns?: number;
 }
 
+const NAVY = "#1B3658";
+
 /**
  * Says so when there is nothing to draw.
  *
@@ -78,32 +76,14 @@ function Reserved({ height, children }: { height: number; children?: ReactNode }
 }
 
 export function Sparkline({ series, label }: ChartProps) {
-    const host = useRef<HTMLDivElement>(null);
-    const width = useElementWidth(host);
     const height = 36;
 
-    return (
-        <div ref={host} className="w-full">
-            {series.length === 0 ? (
-                <NoData height={height} />
-            ) : width === undefined ? (
-                <Reserved height={height} />
-            ) : (
-                <Suspense fallback={<Reserved height={height} />}>
-                    <VegaCharts
-                        kind="sparkline"
-                        series={series}
-                        label={label}
-                        height={height}
-                        width={width}
-                    />
-                </Suspense>
-            )}
-        </div>
-    );
+    if (series.length === 0) return <NoData height={height} />;
+
+    return <SparklineSvg series={series} height={height} label={label} colour={NAVY} />;
 }
 
-export function TrendChart({ series, label, height = 168, valueTitle }: TrendChartProps) {
+export function TrendChart({ series, label, height = 168 }: TrendChartProps) {
     const host = useRef<HTMLDivElement>(null);
     const width = useElementWidth(host);
 
@@ -114,16 +94,13 @@ export function TrendChart({ series, label, height = 168, valueTitle }: TrendCha
             ) : width === undefined ? (
                 <Reserved height={height} />
             ) : (
-                <Suspense fallback={<Reserved height={height} />}>
-                    <VegaCharts
-                        kind="trend"
-                        series={series}
-                        label={label}
-                        height={height}
-                        width={width}
-                        valueTitle={valueTitle}
-                    />
-                </Suspense>
+                <TrendSvg
+                    series={series}
+                    width={width}
+                    height={height}
+                    label={label}
+                    colour={NAVY}
+                />
             )}
         </div>
     );
@@ -137,7 +114,7 @@ export function TrendChart({ series, label, height = 168, valueTitle }: TrendCha
  * overlapping lines, which is unreadable at the back of a room.
  *
  * Panels are a fixed width, so this chart never had the container-measuring
- * problem the other two did.
+ * problem the line charts did.
  */
 export function SmallMultiples({ series, label, columns = 5 }: SmallMultiplesProps) {
     if (series.length === 0) {
