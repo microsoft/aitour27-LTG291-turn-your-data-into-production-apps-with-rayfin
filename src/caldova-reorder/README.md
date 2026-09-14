@@ -70,12 +70,23 @@ The "products running low" tile plots that same reconstruction, so the chart and
 the number above it are finally the same quantity — the last point of the trend
 *is* the tile's number.
 
+The line charts are **plain SVG**, not Vega. They were Vega once, and any
+re-layout — switching tab, opening the detail view, resizing — could leave a view
+collapsed to a flat line with nothing to restore it. Opening the modal removes
+the body scrollbar, every row's width shifts, the view rebuilds, and some
+rebuilds never come back. Plain SVG has no lifecycle to get stuck in. Vega still
+draws the fifteen faceted store panels, where it earns the dependency and where
+fixed-width panels never had the problem. A genuinely unchanging series is drawn
+down the middle, so "steady" cannot be mistaken for "failed to draw".
+
 | Path | File |
 | --- | --- |
 | Data model | [`rayfin/data/RestockRequest.ts`](rayfin/data/RestockRequest.ts) |
 | Where "running low" is read from | [`src/queries/regional-dashboard/low-stock-queue.dax`](src/queries/regional-dashboard/low-stock-queue.dax) |
 | The reorder function | [`rayfin/functions/src/function_app.ts`](rayfin/functions/src/function_app.ts) |
 | Product detail | [`src/components/product-detail.component.tsx`](src/components/product-detail.component.tsx) |
+| Line charts (SVG) | [`src/components/line-chart.tsx`](src/components/line-chart.tsx) |
+| Faceted store panels (Vega) | [`src/components/vega-charts.tsx`](src/components/vega-charts.tsx) |
 
 ## Why the screen moves before the model does
 
