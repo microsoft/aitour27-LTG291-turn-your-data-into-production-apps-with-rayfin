@@ -45,6 +45,12 @@ export function getRayfinClient(): CaldovaClient {
                 baseUrl: apiUrl,
                 publishableKey,
                 authStorage: true,
+                // The connector reaches the semantic model through a function
+                // bridge that is redeployed with the app, so the first call of a
+                // session pays a cold start. The default 30s is not enough for
+                // that, and a dashboard read is idempotent — waiting is better
+                // than showing an error the user can only answer by reloading.
+                timeout: 60_000,
                 connectors: {
                     caldovaModel: caldovaModelConfig,
                 },

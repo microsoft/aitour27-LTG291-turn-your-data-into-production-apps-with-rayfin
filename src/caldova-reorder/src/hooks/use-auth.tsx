@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { OpaqueSession } from "@microsoft/rayfin-auth";
+import { isEmbeddedMode } from "@microsoft/fabric-embedded-host";
 
 import { IAuthService } from "@/services/rayfin-auth.service";
 import { AuthContext, type AuthContextValue } from "./auth.context";
@@ -33,6 +34,23 @@ export function AuthProvider({ children, rayfinAuthService }: AuthProviderProps)
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
+    // Recorded once at mount: the SDK persists a flag when it sees the portal's
+    // query parameter, so asking later can give a different answer than the one
+    // the sign-in attempt actually acted on.
+    const [isEmbedded] = useState(() => {
+        // Being in an iframe is the honest test for the message this drives:
+        // "are you actually inside the portal?". The SDK's own check reads the
+        // `?fabricEmbedded=true` parameter, which a gated origin's sign-in
+        // redirect can drop — so on its own it would call the portal "outside
+        // Fabric" and send the reader in the wrong direction.
+        try {
+            return isEmbeddedMode({}) || window.self !== window.top;
+        } catch {
+            // Cross-origin access to window.top throws, which itself means framed.
+            return true;
+        }
+    });
+
     useEffect(() => {
         let cancelled = false;
 
@@ -41,6 +59,19 @@ export function AuthProvider({ children, rayfinAuthService }: AuthProviderProps)
                 const result = await rayfinAuthService.initEmbeddedAuth();
                 if (cancelled)
                     return;
+
+                // `null` inside the portal means the handoff ran and produced no
+                // session. That is a failure, not "you opened this outside
+                // Fabric", and it has to say so or it sends the reader hunting
+                // in the wrong place.
+                if (result === null && isEmbeddedMode({})) {
+                    setError(
+                        new Error(
+                            "Embedded sign-in did not return a session. See the console for the handoff error.",
+                        ),
+                    );
+                }
+
                 setSession(result);
             } catch (err) {
                 if (!cancelled) {
@@ -56,8 +87,7 @@ export function AuthProvider({ children, rayfinAuthService }: AuthProviderProps)
         };
     }, [rayfinAuthService]);
 
-    if (error)
-        throw error;
+
 
     const value = useMemo<AuthContextValue>(
         () => ({
@@ -65,8 +95,9 @@ export function AuthProvider({ children, rayfinAuthService }: AuthProviderProps)
             isAuthenticated: session?.isAuthenticated ?? false,
             isLoading,
             error,
+            isEmbedded,
         }),
-        [session, isLoading, error],
+        [session, isLoading, error, isEmbedded],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

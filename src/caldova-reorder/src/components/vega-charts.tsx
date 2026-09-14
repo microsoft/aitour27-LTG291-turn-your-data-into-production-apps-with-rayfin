@@ -22,6 +22,12 @@ interface VegaChartsProps {
     facets?: FacetSeries[];
     label: string;
     height: number;
+    /**
+     * Concrete pixel width, measured by the caller. Never `"container"`: Vega
+     * would then measure the element itself, and a zero-width measurement — as
+     * happens on scroll — collapses the view for good.
+     */
+    width?: number;
     valueTitle?: string;
     columns?: number;
 }
@@ -32,6 +38,7 @@ export default function VegaCharts({
     facets = [],
     label,
     height,
+    width,
     valueTitle,
     columns = 5,
 }: VegaChartsProps) {
@@ -39,8 +46,10 @@ export default function VegaCharts({
 
     const spec = useMemo<VisualizationSpec>(() => {
         if (kind === "facet") return facetSpec(facets, height, columns);
-        return kind === "sparkline" ? sparklineSpec(series, height) : trendSpec(series, height, valueTitle);
-    }, [kind, series, facets, height, valueTitle, columns]);
+        return kind === "sparkline"
+            ? sparklineSpec(series, height, width)
+            : trendSpec(series, height, width, valueTitle);
+    }, [kind, series, facets, height, width, valueTitle, columns]);
 
     const isEmpty = kind === "facet" ? facets.length === 0 : series.length === 0;
 
@@ -84,11 +93,11 @@ function yDomain(series: SeriesPoint[]): [number, number] {
     return [Math.max(0, min - spread * 0.35), max + spread * 0.2];
 }
 
-function sparklineSpec(series: SeriesPoint[], height: number): VisualizationSpec {
+function sparklineSpec(series: SeriesPoint[], height: number, width?: number): VisualizationSpec {
     return {
         $schema: "https://vega.github.io/schema/vega-lite/v5.json",
         data: { values: values(series) },
-        width: "container",
+        width,
         height,
         background: "transparent",
         padding: 0,
@@ -113,11 +122,16 @@ function sparklineSpec(series: SeriesPoint[], height: number): VisualizationSpec
     } as VisualizationSpec;
 }
 
-function trendSpec(series: SeriesPoint[], height: number, valueTitle?: string): VisualizationSpec {
+function trendSpec(
+    series: SeriesPoint[],
+    height: number,
+    width?: number,
+    valueTitle?: string,
+): VisualizationSpec {
     return {
         $schema: "https://vega.github.io/schema/vega-lite/v5.json",
         data: { values: values(series) },
-        width: "container",
+        width,
         height,
         background: "transparent",
         view: { stroke: null },

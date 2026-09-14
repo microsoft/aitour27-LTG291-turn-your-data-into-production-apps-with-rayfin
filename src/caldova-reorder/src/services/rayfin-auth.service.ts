@@ -58,6 +58,12 @@ export function bootstrapAuth(): IAuthService {
         projectId,
         fabricPortalUrl,
         returnOrigin: window.location.origin,
+        // Declared rather than sniffed. The SDK otherwise infers embedded mode
+        // from the portal's `?fabricEmbedded=true`, and that parameter does not
+        // survive the sign-in redirect a gated (`assetAccess: protected`) origin
+        // performs — leaving the app convinced it was opened outside Fabric.
+        // This app only ever runs embedded, so it can simply say so.
+        fabricEmbedded: true,
     };
 
     return new RayfinAuthService(client, fabricOptions);
