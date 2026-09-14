@@ -161,7 +161,15 @@ Two things this project needs that are still behind flags or non-default:
   `RAYFIN_FABRIC_API_URL`, and supply a matching token via `RAYFIN_TOKEN`
   (for example from `az account get-access-token --resource https://api.fabric.microsoft.com`).
 
-The Rayfin packages are pinned to the `1.35.0-alpha.*` preview line. Install with
+`services.staticHosting.assetAccess` and `services.staticHosting.embedded.only`
+are a **pair**, and this app needs `protected` + `only: true`.
+
+The host rejects `embedded.only: true` alongside `assetAccess: public`, because an
+embedded app has no standalone surface to make public. Setting `protected` on its
+own — without declaring the app embedded-only — leaves the posture half-stated and
+sign-in fails. Change one, change the other.
+
+The Rayfin packages are pinned to the `1.36.0-alpha.*` line. Install with
 `npm ci` so the lockfile decides the versions — a plain `npm install` can pull a
 newer alpha, and this line still makes breaking changes between builds.
 

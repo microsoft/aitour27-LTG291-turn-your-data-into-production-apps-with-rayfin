@@ -3,6 +3,26 @@ import { useCallback, useEffect, useState } from "react";
 import { getRayfinClient } from "@/lib/rayfin-client";
 import type { ModelRow } from "@/queries/model-row";
 
+/**
+ * Run a query, and give a cold connector one second chance.
+ *
+ * The connector reaches the model through a function bridge that is redeployed
+ * with the app, so the first call of a session can be slow enough to time out
+ * while every later one returns in a second or two. Retrying once turns that
+ * into a slightly slow first paint instead of a dashboard full of errors that
+ * only a reload clears.
+ */
+async function runWithOneRetry(query: string) {
+    const client = getRayfinClient();
+
+    try {
+        return await client.connectors.caldovaModel.executeQuery({ query });
+    } catch (first) {
+        console.warn("[model] query failed, retrying once", first);
+        return await client.connectors.caldovaModel.executeQuery({ query });
+    }
+}
+
 interface ModelQuery<T> {
     query: string;
     parse: (row: ModelRow) => T;
@@ -43,9 +63,7 @@ export function useModelQuery<T>(source: ModelQuery<T>, pollMs?: number): ModelQ
             setIsLoading(true);
 
             try {
-                const result = await getRayfinClient().connectors.caldovaModel.executeQuery({
-                    query,
-                });
+                const result = await runWithOneRetry(query);
                 if (cancelled) return;
 
                 if (result.status === "error") {

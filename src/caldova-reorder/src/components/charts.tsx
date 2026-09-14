@@ -1,4 +1,6 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useRef, type ReactNode } from "react";
+
+import { useElementWidth } from "@/hooks/use-element-width";
 
 /**
  * Chart entry points.
@@ -7,6 +9,10 @@ import { lazy, Suspense, type ReactNode } from "react";
  * the low-stock list — not a chart. So the chart implementation is split out and
  * loaded after first paint. Until it arrives, each chart reserves its own space
  * so nothing on the screen jumps.
+ *
+ * Width is measured here rather than left to Vega. See `useElementWidth` for
+ * why: a container-sized chart collapses permanently the first time it is
+ * measured at zero width, which happens on scroll.
  */
 
 const VegaCharts = lazy(() => import("./vega-charts"));
@@ -45,7 +51,25 @@ export interface SmallMultiplesProps {
     columns?: number;
 }
 
-function Placeholder({ height, children }: { height: number; children?: ReactNode }) {
+/**
+ * Says so when there is nothing to draw.
+ *
+ * An empty series used to render as a flat line, which reads as "demand is
+ * steady" rather than "this query returned nothing" — the wrong message, and
+ * indistinguishable from real data on a projector.
+ */
+function NoData({ height }: { height: number }) {
+    return (
+        <div
+            style={{ height }}
+            className="flex items-center justify-center rounded-md bg-muted/60 text-400 leading-400 font-medium text-muted-foreground"
+        >
+            No data
+        </div>
+    );
+}
+
+function Reserved({ height, children }: { height: number; children?: ReactNode }) {
     return (
         <div style={{ height }} className="flex items-end" aria-hidden>
             {children}
@@ -54,24 +78,54 @@ function Placeholder({ height, children }: { height: number; children?: ReactNod
 }
 
 export function Sparkline({ series, label }: ChartProps) {
+    const host = useRef<HTMLDivElement>(null);
+    const width = useElementWidth(host);
+    const height = 36;
+
     return (
-        <Suspense fallback={<Placeholder height={36} />}>
-            <VegaCharts kind="sparkline" series={series} label={label} height={36} />
-        </Suspense>
+        <div ref={host} className="w-full">
+            {series.length === 0 ? (
+                <NoData height={height} />
+            ) : width === undefined ? (
+                <Reserved height={height} />
+            ) : (
+                <Suspense fallback={<Reserved height={height} />}>
+                    <VegaCharts
+                        kind="sparkline"
+                        series={series}
+                        label={label}
+                        height={height}
+                        width={width}
+                    />
+                </Suspense>
+            )}
+        </div>
     );
 }
 
 export function TrendChart({ series, label, height = 168, valueTitle }: TrendChartProps) {
+    const host = useRef<HTMLDivElement>(null);
+    const width = useElementWidth(host);
+
     return (
-        <Suspense fallback={<Placeholder height={height} />}>
-            <VegaCharts
-                kind="trend"
-                series={series}
-                label={label}
-                height={height}
-                valueTitle={valueTitle}
-            />
-        </Suspense>
+        <div ref={host} className="w-full">
+            {series.length === 0 ? (
+                <NoData height={height} />
+            ) : width === undefined ? (
+                <Reserved height={height} />
+            ) : (
+                <Suspense fallback={<Reserved height={height} />}>
+                    <VegaCharts
+                        kind="trend"
+                        series={series}
+                        label={label}
+                        height={height}
+                        width={width}
+                        valueTitle={valueTitle}
+                    />
+                </Suspense>
+            )}
+        </div>
     );
 }
 
@@ -81,10 +135,17 @@ export function TrendChart({ series, label, height = 168, valueTitle }: TrendCha
  * Drawn as one faceted spec rather than fifteen chart instances — the same
  * picture, a fraction of the work — and as small multiples rather than fifteen
  * overlapping lines, which is unreadable at the back of a room.
+ *
+ * Panels are a fixed width, so this chart never had the container-measuring
+ * problem the other two did.
  */
 export function SmallMultiples({ series, label, columns = 5 }: SmallMultiplesProps) {
+    if (series.length === 0) {
+        return <NoData height={120} />;
+    }
+
     return (
-        <Suspense fallback={<Placeholder height={318} />}>
+        <Suspense fallback={<Reserved height={318} />}>
             <VegaCharts kind="facet" facets={series} label={label} height={68} columns={columns} />
         </Suspense>
     );

@@ -17,6 +17,15 @@ export interface AuthContextValue {
     isLoading: boolean;
     /** Last error from the embedded auth flow, if any. */
     error: Error | null;
+    /**
+     * Whether the page is running inside the Fabric portal's iframe.
+     *
+     * Sign-in can fail for two very different reasons — the app was opened
+     * outside Fabric, or it is embedded and the handoff did not complete — and
+     * they need different messages. Collapsing both into "can't open outside
+     * Fabric" sends the reader looking in the wrong place.
+     */
+    isEmbedded: boolean;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);

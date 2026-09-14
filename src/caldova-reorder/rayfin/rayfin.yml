@@ -18,9 +18,16 @@ services:
     enabled: false
   staticHosting:
     enabled: true
+    # `protected` and `embedded.only` are the platform's paired posture for an
+    # app that only runs inside the portal, and the gate is what identifies the
+    # Fabric user to the sign-in handoff. The app declares `fabricEmbedded: true`
+    # rather than relying on the query parameter, which the gate's redirect drops.
+    assetAccess: protected
     folder: dist
     buildCommand: npm run build:fabric
     indexDocument: index.html
+    embedded:
+      only: true
   functions:
     enabled: true
     buildCommand: npm run build
