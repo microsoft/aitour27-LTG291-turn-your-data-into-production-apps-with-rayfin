@@ -7,6 +7,7 @@ Presenter, re-delivery, and train-the-trainer materials for this session.
 | Item | Link | Notes |
 |---|---|---|
 | Delivery deck | [English](https://aka.ms/aitour27/LTG291/slides/en) | Required URL |
+| Session recording | [YouTube](https://aka.ms/aitour27/LTG291/youtube) | Session recording |
 | Attendee landing page | [Session README](../README.md) | Public starting point |
 | Attendee instructions | [Instructions](../instructions/README.md) | Guided and self-paced path |
 | Deployment guide | [Demo deployment](../docs/README.md) | Reproduce the demo environment |
