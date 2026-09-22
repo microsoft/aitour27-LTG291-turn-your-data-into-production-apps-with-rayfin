@@ -240,7 +240,7 @@ function Test-Authentication {
 [deploy] error: fabio is not authenticated.
 
 Sign in yourself, then run this script again. This script never runs `fabio auth login`,
-because some environments need a specific credential or endpoint setup.
+because interactive authentication must remain under the operator's control.
 
 Check the current state with:
   fabio auth status
@@ -258,8 +258,8 @@ Check the current state with:
 function Write-EndpointHint {
     Write-Host @'
 
-If the workspace definitely exists, it is probably on a different Fabric ring than the one
-fabio is pointed at. Non-production rings need the FABIO_*_ENDPOINT settings in .env.
+Verify that the workspace ID or name is correct and that fabio is authenticated
+to the tenant that contains it.
 '@ -ForegroundColor Yellow
 }
 

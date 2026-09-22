@@ -15,7 +15,9 @@ they do not create or delete the workspace.
 
 The root deployment scripts install the `fabio` helper when it is missing. Review
 that external installer behavior before running the scripts in a restricted
-environment.
+environment. The scripts never sign in for you: on the first run, let the dry
+run install `fabio` if needed, then run `fabio auth login --browser` and repeat
+the deployment command.
 
 ## 1. Configure the Fabric deployment
 
