@@ -37,7 +37,10 @@ Fill in the sections below yourself, then:
 
 ### Session description
 
-Add your session description here. Keep it concise — 2-3 sentences about what attendees will learn and why it matters.
+Ship faster and decide with confidence. With Rayfin, every app you build with
+GitHub Copilot lands its data governed and analytics-ready in Microsoft Fabric,
+so you go from idea to a production app your whole organization can trust, with
+no rewrite.
 
 ### 🚀 Getting started
 
@@ -45,33 +48,35 @@ Add your session description here. Keep it concise — 2-3 sentences about what 
 
 If you're following along during a live session:
 
-1. Step 1
-2. Step 2
-3. Open [`instructions/`](instructions/README.md) when this session includes
-   attendee step-by-step guidance
+1. Open the [attendee instructions](instructions/README.md).
+2. Follow the presenter through the Caldova scenario and architecture.
+3. Use the linked deployment notes if you want to reproduce the demo afterward.
 
 #### On your own
 
 If you're learning at your own pace:
 
 1. Clone this repository
-2. Set up your environment
-3. Follow the session guidance in [`instructions/`](instructions/README.md), or
-   use the linked docs-site entry point when this repository uses that pattern
+2. Follow the [attendee instructions](instructions/README.md).
+3. Use the [deployment guide](docs/README.md) to configure and deploy your own
+   copy.
 
 ### 🎯 Learning outcomes
 
 By the end of this session, you will be able to:
 
-- Outcome 1
-- Outcome 2
-- Outcome 3
+- Move from intent to action and increase decision confidence.
+- Explain how a code-first backend on Microsoft Fabric closes the
+  prototype-to-production gap with agentic engineering.
+- Understand how apps built with GitHub Copilot produce governed,
+  analytics-ready data from day one.
 
 ### 💻 Technologies used
 
-- Technology 1
-- Technology 2
-- Technology 3
+- GitHub Copilot
+- Rayfin
+- Microsoft Fabric
+- Microsoft Fabric IQ
 
 ### 📚 Continue your learning
 
@@ -84,8 +89,6 @@ Pick your next step based on your learning style:
 | **[Microsoft Foundry Community](https://aka.ms/MicrosoftFoundryDiscord-AITour27)** | Connect with other learners and experts in our Discord community |
 
 ### 🌟 Microsoft Learn MCP Server
-
-<!-- Remove this section if the Microsoft Learn MCP Server is not relevant to the session. -->
 
 The Microsoft Learn MCP Server gives your AI agent direct access to Microsoft's official documentation — grounded, up-to-date answers about the topics in this session.
 
@@ -102,17 +105,12 @@ For more information, visit the [Learn MCP Server repo](https://aka.ms/learnmcp)
 
 ### 👥 Content owners
 
-<!-- TODO: Add yourself as a content owner
-1. Change the src in the image tag to {your github url}.png
-2. Change INSERT NAME HERE to your name
-3. Change the github url in the final href to your url. -->
-
 <table>
 <tr>
-    <td align="center"><a href="http://github.com/yourGitHubHandle">
-        <img src="https://github.com/yourGitHubHandle.png" width="100px;" alt="INSERT NAME HERE"/><br />
-        <sub><b>INSERT NAME HERE</b></sub></a><br />
-            <a href="https://github.com/yourGitHubHandle" title="talk">📢</a>
+    <td align="center"><a href="https://github.com/sinedied">
+        <img src="https://github.com/sinedied.png" width="100px;" alt="Yohan Lasorsa"/><br />
+        <sub><b>Yohan Lasorsa</b></sub></a><br />
+            <a href="https://github.com/sinedied" title="talk">📢</a>
     </td>
 </tr></table>
 

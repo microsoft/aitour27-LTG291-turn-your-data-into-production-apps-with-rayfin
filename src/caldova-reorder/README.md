@@ -156,21 +156,24 @@ to point the shell at your local dev server.
 
 ## Deploying
 
+Before deployment, replace `<fabric-workspace-id>` and
+`<semantic-model-item-id>` in [`rayfin/rayfin.yml`](rayfin/rayfin.yml) with the
+workspace and semantic model IDs created by the root deployment scripts. Rayfin
+requires literal connector IDs; environment-variable placeholders are not
+supported for these fields.
+
 ```bash
 npx rayfin login
-npx rayfin up
+RAYFIN_FEATURE_FLAGS=functions,connectors npx rayfin up
 ```
 
 `rayfin up` deploys the frontend, the function and the schema, and applies the
 runtime settings in one step.
 
-Two things this project needs that are still behind flags or non-default:
+One part of this project is still behind feature flags:
 
 - Functions and connectors are preview features — export
   `RAYFIN_FEATURE_FLAGS=functions,connectors` for the CLI to see them.
-- If the workspace is on a non-production ring, point the CLI at it with
-  `RAYFIN_FABRIC_API_URL`, and supply a matching token via `RAYFIN_TOKEN`
-  (for example from `az account get-access-token --resource https://api.fabric.microsoft.com`).
 
 `services.staticHosting.assetAccess` and `services.staticHosting.embedded.only`
 are a **pair**, and this app needs `protected` + `only: true`.

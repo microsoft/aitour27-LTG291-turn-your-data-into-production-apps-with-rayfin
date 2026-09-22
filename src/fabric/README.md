@@ -98,25 +98,6 @@ The scripts require an existing workspace and never create or delete one. They a
 
 `definition/model.tmdl` carries a `{{DATABASE_QUERY_SOURCE}}` placeholder that the deploy script fills in with the right source for the chosen mode. The committed definition is therefore not directly deployable by hand — deploy through the script.
 
-### Non-production rings
-
-A workspace on a ring like `daily.powerbi.com` is invisible from the production Fabric endpoint and reports as `WorkspaceNotFound`. Point fabio at the right ring with the `FABIO_*` settings in `.env`. For the daily ring:
-
-```
-FABIO_FABRIC_API_ENDPOINT=https://dailyapi.fabric.microsoft.com/v1
-FABIO_POWERBI_ENDPOINT=https://dailyapi.powerbi.com/v1.0/myorg
-FABIO_ONELAKE_DFS_ENDPOINT=https://daily-onelake.dfs.fabric.microsoft.com
-FABIO_ONELAKE_BLOB_ENDPOINT=https://daily-onelake.blob.fabric.microsoft.com
-FABIO_CLIENT_ID=04b07795-8ddb-461a-bbee-02f9e1bf7b46
-```
-
-All four endpoints matter, and they fail at different points: the Fabric API resolves the workspace, OneLake carries the CSV uploads, and the Power BI API performs the model refresh. Sign in with the Azure CLI client id before running the scripts:
-
-```
-export FABIO_CLIENT_ID=04b07795-8ddb-461a-bbee-02f9e1bf7b46
-fabio auth login --browser
-```
-
 ## Running the queries by hand
 
 ```

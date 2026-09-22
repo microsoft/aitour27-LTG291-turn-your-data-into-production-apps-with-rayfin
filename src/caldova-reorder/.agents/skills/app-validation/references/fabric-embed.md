@@ -100,4 +100,3 @@ Treat anything in `appErrors` as a real failure. `portalNoise` is safe to ignore
 
 - [Chrome status: Local Network Access](https://chromestatus.com/feature/5436853517811712)
 - [MDN: `Access-Control-Allow-Private-Network`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Private-Network)
-- [`SWITCH_TO_FABRIC_AUTH.md`](../../../../../SWITCH_TO_FABRIC_AUTH.md) — embedded auth flow background
